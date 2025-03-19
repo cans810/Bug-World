@@ -117,10 +117,15 @@ MonoBehaviour:
   - {fileID: 2245926221251042259, guid: eb4047aed81649a46b28ce7ae7b87683, type: 3}
   - {fileID: 4337023053570531295, guid: 12544837b67bf8d42a4f51a8b2bd7c7e, type: 3}
   - {fileID: 3001940053188874337, guid: 53a5cac7b38df5c4e9827815f383a6b0, type: 3}
-  hatchTime: 7200
+  hatchTime: 10
   playerDetectionRadius: 1
   hatchParticles: {fileID: 0}
   pulsatingEffect: {fileID: 0}
+  incubationTime: 60
+  remainingTime: 0
+  countdownCanvas: {fileID: 0}
+  countdownText: {fileID: 0}
+  playerProximityDistance: 5
 --- !u!1 &8900088121808688163
 GameObject:
   m_ObjectHideFlags: 0

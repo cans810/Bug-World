@@ -183,7 +183,7 @@ public class AllyEggController : MonoBehaviour
             yield return null;
         }
         
-        Debug.Log($"Egg hatched! Spawning {entityTypeToHatch}");
+        Debug.Log($"Egg hatching complete! Spawning {entityTypeToHatch}");
         
         // Play hatching effects
         if (hatchParticles != null)
@@ -200,7 +200,7 @@ public class AllyEggController : MonoBehaviour
         }
         
         // Spawn the entity
-        SpawnAlly();
+        SpawnEntityFromEgg();
         
         // Remove egg data from persistence
         if (myEggData != null)

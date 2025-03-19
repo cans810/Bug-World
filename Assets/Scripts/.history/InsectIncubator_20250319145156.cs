@@ -140,7 +140,7 @@ public class InsectIncubator : MonoBehaviour
         }
     }
     
-    // Updated method to create egg as child of incubator
+    // Modify the CreateInsectEgg method to save egg data
     public GameObject CreateInsectEgg(string entityType)
     {
         // No eggs allowed if at capacity
@@ -153,8 +153,8 @@ public class InsectIncubator : MonoBehaviour
         // Save which entity type we're hatching
         currentEntityTypeToHatch = entityType;
         
-        // Create the egg as a child of the incubator, at the spawn position
-        GameObject eggObj = Instantiate(insectEggPrefab, eggPos.position, Quaternion.identity, transform);
+        // Create the egg at spawn position
+        GameObject eggObj = Instantiate(insectEggPrefab, eggPos.position, Quaternion.identity);
         
         // Configure the egg
         AllyEggController eggController = eggObj.GetComponent<AllyEggController>();
