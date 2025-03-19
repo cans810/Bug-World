@@ -1,0 +1,55 @@
+/////////////// YAPILANLAR ///////////////
+// bazı böcekler neutral olsun, yani oyuncu saldırana kadar saldırmasın, şimdilik sadece uğur böceğini neutral yap.
+dinozor oyununu oyna, ordan bişeyler almaya bak
+// yumurta paneli de yap, şimdilik tek seferde sadece 1 yumurta hatch edebilsin
+// yerdeki lootları alınca, dinozor oyunundakine benzer bir animasyonla üstüne gelsinler,
+// şu sistemi yap: gerekli durumlarda, nest nerde ekranda ona işaret eden bir ok olsun, veya ant incubator nerde vs., ayrıca oyuncu nereye gitmeli vs onu göstersin
+// Envanter dolduğunda, oyuncunun ekranında belirsin inform mesajı, inform mesajının gelmesini ve gitmesini animasyonlaştır.
+// enemy'ler base bölgesine girememeli, yoksa oyuncu heal olurken onları kesebilir.
+// arayüzler için bir asset bul, tarzı belirle.
+// saldırınca çıkan sesi bul ve ekle,
+// yerden item alınca çıkan sesi bul ve ekle,
+
+/////////////// YAPILACAKLAR ///////////////
+
+// yeni keşfedilen böceğin inform text olarak gösterilmesini yap, ama oyun kapayıp açınca bidaha çıkmamalı
+2) scroll areayı düzgün yap
+3) 
+
+// böceklerin hitboxunu küçült
+
+// enemy'ler wander yaparken tek çizgide dolaşmalılar, yalnızca oyuncuya saldırmak için takip ederken eğimli hareket edebilirler.
+ 
+// map boundryleri kendin yap, layer yolu kullanarak sphere collider objeleri olsun, kodla oluşturmaya gerek yok, hata bu objeleri
+generatorların içine koyup pozisyonu da koruyabilirsin
+
+1) yeni bir collectable/loot/item ekle, bunları biriktirerek skill tablosunda, skiller alınabilir, mesela geniş atak.
+
+1) Ally movement'a sonra bak.
+1) Enemy'ler hem player base e girememeli hem de oldukları bölgeden dışarı çıkamamalı, bunlar için algoritma düşün.
+
+// düşün: bulunululan bölgedeki en güçlü böcekleri keserek özel bir loot düşsün, bu lootla mapi genişletip daha farklı
+böcekleri kesebilsin, 3 bölgeden oluşsun harita, her bölgede 2 şer tane güçlü böcek bulunsun, VEYA
+direkt dinozor oyununu çal.
+
+1) level kazanarak yeni bölgelere girebilcek, daha fazla bölge ekle, toplam 6 bölge olsun, levella xp vs nasıl 
+ayarlayabilirsin oyununun oynanabilirliği için ona bak.
+
+1) daha fazla böcek ekle
+
+2) keşfedilen böcekler kataloğu yap, böcek keşfetmeyi yazdır, ikonları yapay zekaya çizdir.
+
+?!) chitinleri base e götürünce, sağ üstteki chitin panelinden, biraz aşağı ortaya gelsinler, ordan da sol üste gitsinler.
+
+3) arayüzleri iyileştirmeye devam et
+
+arayüzleri daha güzel yap: upgrade arayüzü ve ally ekleme arayüzü
+ayarlar arayüzü ekle ama daha implement etme
+
+upgrade arayüzü ve ally ekleme arayüzlerine tıklayınca gelip gitme seslerini ekle
+
+Bu oyun için nasıl bir save load sistemi inşa edebilirsin düşün
+
+
+///// GRAFİKLER EN SON /////
+

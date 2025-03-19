@@ -1,0 +1,1 @@
+public int maxEggCapacity = 1; // Default value 

@@ -1,0 +1,428 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerInventory : MonoBehaviour
+{
+    [Header("Inventory Settings")]
+    [SerializeField] private int maxChitinCapacity = 5;
+    [SerializeField] private int maxCrumbCapacity = 5;
+    
+    [Header("Collection Settings")]
+    [SerializeField] private string lootLayerName = "Loot";
+    [SerializeField] private bool showDebugMessages = true;
+    [SerializeField] private AudioClip collectionSound;
+    
+    [Header("Experience Settings")]
+    [SerializeField] private int experiencePerChitin = 10;
+    [SerializeField] private int experiencePerCrumb = 5;
+    
+    [Header("Level System")]
+    [SerializeField] private int maxLevel = 10;
+    private int[] xpRequirements = new int[10] { 0, 20, 60, 110, 150, 210, 280, 350, 430, 510 };
+    
+    // Events that UI can subscribe to
+    public event Action<int> OnChitinCountChanged;
+    public event Action<int> OnCrumbCountChanged;
+    public event Action<int> OnExperienceChanged;
+    public event Action<int> OnLevelUp;
+    public event Action OnChitinMaxed;
+    public event Action OnCrumbMaxed;
+    
+    // Inventory data
+    private int _chitinCount = 0;
+    public int ChitinCount 
+    { 
+        get => _chitinCount; 
+        private set 
+        {
+            _chitinCount = Mathf.Clamp(value, 0, maxChitinCapacity);
+            OnChitinCountChanged?.Invoke(_chitinCount);
+        }
+    }
+    
+    // Crumb inventory data
+    private int _crumbCount = 0;
+    public int CrumbCount
+    {
+        get => _crumbCount;
+        private set
+        {
+            _crumbCount = Mathf.Clamp(value, 0, maxCrumbCapacity);
+            OnCrumbCountChanged?.Invoke(_crumbCount);
+        }
+    }
+    
+    // Experience data
+    private int _experience = 0;
+    public int Experience
+    {
+        get => _experience;
+        private set
+        {
+            int oldExperience = _experience;
+            _experience = Mathf.Max(0, value);
+            OnExperienceChanged?.Invoke(_experience);
+            
+            // Check for level up
+            int oldLevel = GetLevelFromExperience(oldExperience);
+            int newLevel = GetLevelFromExperience(_experience);
+            
+            if (newLevel > oldLevel)
+            {
+                // Level up occurred!
+                OnLevelUp?.Invoke(newLevel);
+                
+                if (showDebugMessages)
+                {
+                    Debug.Log($"Level up! Now level {newLevel}");
+                }
+            }
+        }
+    }
+    
+    // Level system properties
+    public int CurrentLevel => GetLevelFromExperience(_experience);
+    public int ExperienceForNextLevel => GetExperienceRequiredForNextLevel(_experience);
+    public int CurrentLevelExperience => GetExperienceInCurrentLevel(_experience);
+    public float LevelProgress => GetLevelProgress(_experience);
+    public bool IsMaxLevel => CurrentLevel >= maxLevel;
+    
+    // Property for max capacities
+    public int MaxChitinCapacity => maxChitinCapacity;
+    public int MaxCrumbCapacity => maxCrumbCapacity;
+    
+    // Inventory state properties
+    public bool IsChitinFull => ChitinCount >= maxChitinCapacity;
+    public bool IsCrumbFull => CrumbCount >= maxCrumbCapacity;
+    
+    // Called when game starts
+    private void Start()
+    {
+        // Initialize inventory
+        ChitinCount = 0;
+        CrumbCount = 0;
+        Experience = 0;
+    }
+    
+    // Get the level based on current experience
+    private int GetLevelFromExperience(int exp)
+    {
+        int level = 1;
+        
+        for (int i = 1; i < xpRequirements.Length; i++)
+        {
+            if (exp >= xpRequirements[i])
+            {
+                level = i + 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+        
+        return Mathf.Min(level, maxLevel);
+    }
+    
+    // Calculate how much XP is needed for the next level
+    private int GetExperienceRequiredForNextLevel(int exp)
+    {
+        int currentLevel = GetLevelFromExperience(exp);
+        
+        // If already at max level, return 0
+        if (currentLevel >= maxLevel)
+        {
+            return 0;
+        }
+        
+        return xpRequirements[currentLevel];
+    }
+    
+    // Calculate how much XP has been earned in the current level
+    private int GetExperienceInCurrentLevel(int exp)
+    {
+        int currentLevel = GetLevelFromExperience(exp);
+        
+        // If at level 1, all experience counts
+        if (currentLevel == 1)
+        {
+            return exp;
+        }
+        
+        // Otherwise, subtract the XP required for the current level
+        return exp - xpRequirements[currentLevel - 2];
+    }
+    
+    // Calculate progress to next level (0.0 to 1.0)
+    private float GetLevelProgress(int exp)
+    {
+        int currentLevel = GetLevelFromExperience(exp);
+        
+        // If at max level, progress is 100%
+        if (currentLevel >= maxLevel)
+        {
+            return 1.0f;
+        }
+        
+        int currentLevelXP = GetExperienceInCurrentLevel(exp);
+        int xpForCurrentLevel = xpRequirements[currentLevel - 1] - (currentLevel > 1 ? xpRequirements[currentLevel - 2] : 0);
+        
+        return (float)currentLevelXP / xpForCurrentLevel;
+    }
+    
+    private int lootLayerNumber;
+    private AudioSource audioSource;
+    
+    private void Awake()
+    {
+        // Cache the layer number for more efficient collision checks
+        lootLayerNumber = LayerMask.NameToLayer(lootLayerName);
+        
+        // Get or add audio source for collection sounds
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null && collectionSound != null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+        }
+    }
+    
+    private void OnTriggerEnter(Collider other)
+    {
+        // Check if the collided object is on the Loot layer
+        if (other.gameObject.layer == lootLayerNumber)
+        {
+            // First check if it's a crumb - check the GameObject and all its parents
+            CrumbCollectible crumbComponent = other.GetComponentInParent<CrumbCollectible>();
+            if (crumbComponent != null)
+            {
+                CollectCrumb(other.gameObject);
+                return;
+            }
+            
+            // Also check children in case the collider is on a parent object
+            CrumbCollectible[] childCrumbs = other.GetComponentsInChildren<CrumbCollectible>();
+            if (childCrumbs != null && childCrumbs.Length > 0)
+            {
+                CollectCrumb(other.gameObject);
+                return;
+            }
+            
+            // If not a crumb, assume it's chitin
+            CollectChitin(other.gameObject);
+        }
+    }
+    
+    private void CollectChitin(GameObject chitinObject)
+    {
+        // Check if we're at max capacity before collecting
+        if (IsChitinFull)
+        {
+            // Trigger the maxed event to notify UI/audio systems
+            OnChitinMaxed?.Invoke();
+            
+            if (showDebugMessages)
+            {
+                Debug.Log($"Cannot collect chitin: inventory full ({ChitinCount}/{maxChitinCapacity})");
+            }
+            
+            return;
+        }
+        
+        // Increase chitin count
+        ChitinCount++;
+        
+        // Play collection sound if assigned
+        if (audioSource != null && collectionSound != null)
+        {
+            audioSource.PlayOneShot(collectionSound);
+        }
+        
+        // Destroy the chitin object
+        Destroy(chitinObject);
+    }
+    
+    private void CollectCrumb(GameObject crumbObject)
+    {
+        // Try to use the collectible's own collection logic if available
+        // Check if we're at max capacity before collecting
+        if (IsCrumbFull)
+        {
+            // Trigger the maxed event to notify UI/audio systems
+            OnCrumbMaxed?.Invoke();
+            
+            if (showDebugMessages)
+            {
+                Debug.Log($"Cannot collect crumb: inventory full ({CrumbCount}/{maxCrumbCapacity})");
+            }
+            
+            return;
+        }
+        
+        // Increase crumb count
+        CrumbCount++;
+        
+        // Play collection sound if assigned
+        if (audioSource != null && collectionSound != null)
+        {
+            audioSource.PlayOneShot(collectionSound);
+        }
+        
+        // Destroy the crumb object
+        Destroy(crumbObject);
+    }
+    
+    // Method to add crumbs (for testing or rewards)
+    public bool AddCrumb(int amount)
+    {
+        // Don't allow adding more if we're at max capacity
+        if (CrumbCount >= maxCrumbCapacity)
+        {
+            // Trigger the maxed event to notify UI/audio systems
+            OnCrumbMaxed?.Invoke();
+            
+            // Log for debugging
+            if (showDebugMessages)
+            {
+                Debug.Log($"Cannot add crumb: inventory full ({CrumbCount}/{maxCrumbCapacity})");
+            }
+            
+            return false;
+        }
+        
+        // Calculate how much we can actually add without exceeding max
+        int amountToAdd = Mathf.Min(amount, maxCrumbCapacity - CrumbCount);
+        
+        // Add the crumbs
+        CrumbCount += amountToAdd;
+        
+        // Notify listeners of the change
+        OnCrumbCountChanged?.Invoke(CrumbCount);
+        
+        return amountToAdd > 0;
+    }
+    
+    // Remove crumbs from inventory
+    public bool RemoveCrumb(int amount)
+    {
+        if (amount <= 0 || CrumbCount < amount) return false;
+        
+        CrumbCount -= amount;
+        return true;
+    }
+    
+    // Method to use crumbs (for feeding, etc.)
+    public bool UseCrumb(int amount)
+    {
+        if (CrumbCount >= amount)
+        {
+            CrumbCount -= amount;
+            OnCrumbCountChanged?.Invoke(CrumbCount);
+            return true;
+        }
+        return false;
+    }
+    
+    // Deposit crumbs at the base and gain XP
+    public void DepositCrumbsAtBase(int amount)
+    {
+        if (amount <= 0 || CrumbCount < amount) return;
+        
+        // Remove crumbs from inventory
+        CrumbCount -= amount;
+        
+        // Add experience
+        Experience += amount * experiencePerCrumb;
+    }
+    
+    // Deposit all crumbs at once
+    public void DepositAllCrumbsAtBase()
+    {
+        int crumbsToDeposit = CrumbCount;
+        DepositCrumbsAtBase(crumbsToDeposit);
+    }
+    
+    // Method to use chitin (for crafting, etc.)
+    public bool UseChitin(int amount)
+    {
+        if (ChitinCount >= amount)
+        {
+            ChitinCount -= amount;
+            OnChitinCountChanged?.Invoke(ChitinCount);
+            return true;
+        }
+        return false;
+    }
+    
+    // Method to add chitin (for testing or rewards)
+    public bool AddChitin(int amount)
+    {
+        // Don't allow adding more if we're at max capacity
+        if (ChitinCount >= maxChitinCapacity)
+        {
+            // Trigger the maxed event to notify UI/audio systems
+            OnChitinMaxed?.Invoke();
+            
+            // Log for debugging
+            Debug.Log($"Cannot add chitin: inventory full ({ChitinCount}/{maxChitinCapacity})");
+            
+            return false;
+        }
+        
+        // Calculate how much we can actually add without exceeding max
+        int amountToAdd = Mathf.Min(amount, maxChitinCapacity - ChitinCount);
+        
+        // Add the chitin
+        ChitinCount += amountToAdd;
+        
+        // Notify listeners of the change
+        OnChitinCountChanged?.Invoke(ChitinCount);
+        
+        return amountToAdd > 0;
+    }
+    
+    // Remove chitin from inventory
+    public bool RemoveChitin(int amount)
+    {
+        if (amount <= 0 || ChitinCount < amount) return false;
+        
+        ChitinCount -= amount;
+        return true;
+    }
+    
+    // Deposit chitin at the base and gain XP
+    public void DepositChitinAtBase(int amount)
+    {
+        if (amount <= 0 || ChitinCount < amount) return;
+        
+        // Remove chitin from inventory
+        ChitinCount -= amount;
+        
+        // Add experience
+        Experience += amount * experiencePerChitin;
+    }
+    
+    // Deposit all chitin at once
+    public void DepositAllChitinAtBase()
+    {
+        int chitinToDeposit = ChitinCount;
+        DepositChitinAtBase(chitinToDeposit);
+    }
+
+    public void AddChitinFromEnemy(LivingEntity enemy)
+    {
+        if (enemy != null)
+        {
+            int amount = enemy.chitinAmount;
+            Debug.Log($"AddChitinFromEnemy called with {amount} chitin from {enemy.name}");
+            AddChitin(amount);
+        }
+        else
+        {
+            // Fallback if enemy reference is lost
+            Debug.LogWarning("AddChitinFromEnemy called with null enemy");
+            AddChitin(1);
+        }
+    }
+} 

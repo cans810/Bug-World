@@ -1,0 +1,5 @@
+# ninja log v5
+1	222	7636978849625877	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	4526ff938c95c71d
+223	373	7636978850821817	C:/Users/Can/Desktop/Insect Evolution Battle Swarm/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/225eo393/obj/arm64-v8a/libswappywrapper.so	a6413457f44c1540
+4	309	7637820299853189	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	4526ff938c95c71d
+309	627	7637820302639879	C:/Users/Can/Desktop/Insect Evolution Battle Swarm/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/225eo393/obj/arm64-v8a/libswappywrapper.so	a6413457f44c1540

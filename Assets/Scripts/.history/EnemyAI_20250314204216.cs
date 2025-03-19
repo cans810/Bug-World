@@ -1,0 +1,545 @@
+using UnityEngine;
+using System.Collections;
+
+public class EnemyAI : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    [SerializeField] private float attackDistance = 1.5f; // Distance at which to attack
+    [SerializeField] private float targetRotationSpeed = 5.0f; // Increased rotation speed for sharper turns
+    
+    [Header("Attack Settings")]
+    [SerializeField] private float attackInterval = 1.5f; // Minimum time between attacks
+    [SerializeField] private float minAttackDistance = 1.0f; // Minimum distance required to attack player
+    
+    [Header("Behavior Settings")]
+    [SerializeField] private EnemyBehaviorMode behaviorMode = EnemyBehaviorMode.Aggressive; // Default behavior mode
+    [SerializeField] private float aggroMemoryDuration = 30f; // How long the enemy remembers being attacked
+    
+    [Header("References")]
+    [SerializeField] private AnimationController animController;
+    [SerializeField] public LivingEntity livingEntity;
+    
+    [Header("Nest Avoidance")]
+    [SerializeField] private bool avoidPlayerNest = true;
+    [SerializeField] private float nestAvoidanceDistance = 0f;
+    [SerializeField] private string nestLayerName = "PlayerNest1";
+    [SerializeField] private string nestObjectName = "Player Nest 1";
+    
+    // Internal states
+    private bool isMoving = false;
+    private bool isWandering = false;
+    private float lastAttackTime = -999f;
+    private LivingEntity currentTarget = null;
+    private AIWandering wanderingBehavior;
+    private bool hasBeenAttacked = false;
+    private float lastAttackedTime = -999f;
+    
+    private Transform playerNestTransform;
+    private float nestRadius = 0f;
+    
+    // Add a new state tracking variable at the class level, near other state variables
+    private bool isStandingAfterKill = false;
+    
+    // Enum to define different enemy behavior modes
+    public enum EnemyBehaviorMode
+    {
+        Aggressive,  // Always attacks player on sight
+        Passive,     // Only attacks if player attacks first
+        Territorial  // Only attacks if player gets too close (future implementation)
+    }
+    
+    // We're keeping boundary redirection logic but using world-space logic
+    private bool isHittingBoundary = false;
+    private float boundaryRedirectionTime = 0f;
+    private const float BOUNDARY_REDIRECT_DURATION = 1.5f; // Time to spend redirecting after hitting boundary
+    
+    private void Start()
+    {
+        // Get components if not set
+        if (livingEntity == null)
+            livingEntity = GetComponent<LivingEntity>();
+            
+        if (animController == null)
+            animController = GetComponent<AnimationController>();
+            
+        // Get reference to the wandering behavior
+        wanderingBehavior = GetComponent<AIWandering>();
+        
+        // Ensure entity is set to be destroyed after death
+        if (livingEntity != null)
+        {
+            // Subscribe to death event
+            livingEntity.OnDeath.AddListener(HandleDeath);
+            
+            // Subscribe to damage event to detect when attacked
+            livingEntity.OnDamaged.AddListener(HandleDamaged);
+            
+            // Make sure destruction settings are properly configured
+            livingEntity.SetDestroyOnDeath(true, 5f);
+        }
+        
+        // Start idle
+        UpdateAnimation(false);
+        
+        // Find the player nest
+        FindPlayerNest();
+        
+        // Enable wandering behavior
+        if (wanderingBehavior != null)
+        {
+            wanderingBehavior.SetWanderingEnabled(true);
+            isWandering = true;
+        }
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe from events to prevent memory leaks
+        if (livingEntity != null)
+        {
+            livingEntity.OnDeath.RemoveListener(HandleDeath);
+            livingEntity.OnDamaged.RemoveListener(HandleDamaged);
+        }
+    }
+    
+    private void HandleDeath()
+    {
+        if (wanderingBehavior != null)
+            wanderingBehavior.enabled = false;
+        
+        isMoving = false;
+        isWandering = false;
+        
+        enabled = false;
+    }
+    
+    private void HandleDamaged()
+    {
+        // Mark as attacked and store the time
+        hasBeenAttacked = true;
+        lastAttackedTime = Time.time;
+        
+        // No longer initiate chase behavior when damaged
+    }
+    
+    private void Update()
+    {
+        // Don't do anything if dead
+        if (livingEntity == null || livingEntity.IsDead)
+            return;
+        
+        // Check if our current target died
+        if (currentTarget != null && currentTarget.IsDead)
+        {
+            // Target died, stand still for a few seconds before returning to wandering
+            StartCoroutine(StandStillAfterKill());
+            return;
+        }
+        
+        // If we're hitting a boundary, handle redirection
+        if (isHittingBoundary)
+        {
+            if (Time.time > boundaryRedirectionTime)
+            {
+                isHittingBoundary = false;
+                
+                // Return to wandering after boundary redirection
+                ReturnToWandering();
+            }
+            return;
+        }
+        
+        // If we're not already wandering, start wandering
+        if (!isWandering && wanderingBehavior != null && !wanderingBehavior.IsCurrentlyMoving())
+        {
+            wanderingBehavior.SetWanderingEnabled(true);
+            isWandering = true;
+        }
+        
+        // Check if we have any targets in range for attack (but don't chase)
+        if (livingEntity.HasTargetsInRange())
+        {
+            // Get the closest valid target from the livingEntity
+            LivingEntity potentialTarget = livingEntity.GetClosestValidTarget();
+            
+            // If we found a target, decide whether to attack based on behavior mode
+            if (potentialTarget != null && !potentialTarget.IsDead)
+            {
+                bool shouldAttack = false;
+                
+                switch (behaviorMode)
+                {
+                    case EnemyBehaviorMode.Aggressive:
+                        // Always attack if in range
+                        shouldAttack = true;
+                        break;
+                        
+                    case EnemyBehaviorMode.Passive:
+                        // Only attack if we've been attacked
+                        shouldAttack = hasBeenAttacked;
+                        break;
+                }
+                
+                if (shouldAttack)
+                {
+                    // Set current target for attack
+                    currentTarget = potentialTarget;
+                    
+                    // Attack if in range, but don't chase
+                    AttackIfInRange();
+                }
+            }
+        }
+    }
+    
+    private void FindPlayerNest()
+    {
+        // Find the player nest by name
+        GameObject nestObject = GameObject.Find(nestObjectName);
+        if (nestObject != null)
+        {
+            playerNestTransform = nestObject.transform;
+            
+            // Get the sphere collider to determine radius
+            SphereCollider nestCollider = nestObject.GetComponent<SphereCollider>();
+            if (nestCollider != null)
+            {
+                nestRadius = nestCollider.radius * Mathf.Max(
+                    nestObject.transform.lossyScale.x,
+                    nestObject.transform.lossyScale.y,
+                    nestObject.transform.lossyScale.z
+                );
+                
+                Debug.Log($"Found player nest with radius: {nestRadius}");
+            }
+            else
+            {
+                // Default radius if no collider found
+                nestRadius = 5f;
+                Debug.LogWarning("Player nest found but has no SphereCollider, using default radius");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"Player nest '{nestObjectName}' not found in scene");
+        }
+    }
+    
+    // New method to check if a position is too close to the nest
+    private bool IsPositionTooCloseToNest(Vector3 position)
+    {
+        if (!avoidPlayerNest || playerNestTransform == null)
+            return false;
+        
+        float distanceToNest = Vector3.Distance(position, playerNestTransform.position);
+        return distanceToNest < (nestRadius + nestAvoidanceDistance);
+    }
+    
+    // New method to get a safe direction away from the nest
+    private Vector3 GetDirectionAwayFromNest(Vector3 currentPosition)
+    {
+        if (playerNestTransform == null)
+            return Vector3.zero;
+        
+        return (currentPosition - playerNestTransform.position).normalized;
+    }
+    
+    // Simplified attack method that doesn't involve chasing
+    private void AttackIfInRange()
+    {
+        // If we have a valid target in attack range, attack it
+        if (currentTarget != null && !currentTarget.IsDead)
+        {
+            float distanceToTarget = Vector3.Distance(transform.position, currentTarget.transform.position);
+            
+            // If we're close enough to attack
+            if (distanceToTarget <= minAttackDistance)
+            {
+                // Stop moving
+                isMoving = false;
+                UpdateAnimation(false);
+                
+                // Face the target directly
+                FaceTarget(currentTarget.transform.position);
+                
+                // Try to attack if cooldown has passed
+                if (Time.time >= lastAttackTime + attackInterval)
+                {
+                    if (livingEntity.TryAttack())
+                    {
+                        lastAttackTime = Time.time;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Modify ReturnToWandering to simplify it
+    private void ReturnToWandering()
+    {
+        currentTarget = null;
+        isStandingAfterKill = false; // Reset the standing after kill state
+        
+        // Stop moving
+        isMoving = false;
+        
+        // Force animation update to idle immediately
+        UpdateAnimation(false);
+        
+        // Cancel any pending coroutines
+        StopAllCoroutines();
+        
+        // Start the pause-then-wander sequence
+        StartCoroutine(PauseAfterChase());
+    }
+    
+    // Rename to better reflect its purpose
+    private IEnumerator PauseAfterChase()
+    {
+        // Ensure wandering behavior is disabled during the pause
+        if (wanderingBehavior != null)
+        {
+            wanderingBehavior.enabled = false;
+            isWandering = false;
+        }
+        
+        // Make sure we're in idle animation
+        UpdateAnimation(false);
+        
+        // Pause for 2 seconds
+        float pauseDuration = 2.0f;
+        float timer = 0f;
+        
+        // During this pause, we'll keep the enemy in place
+        Vector3 pausePosition = transform.position;
+        Quaternion pauseRotation = transform.rotation;
+        
+        while (timer < pauseDuration)
+        {
+            // Ensure position and rotation stay fixed
+            transform.position = pausePosition;
+            transform.rotation = pauseRotation;
+            
+            timer += Time.deltaTime;
+            yield return null;
+        }
+        
+        // After the pause, pick a new direction to face
+        Vector3 newForward = Quaternion.Euler(0, Random.Range(0f, 360f), 0) * Vector3.forward;
+        
+        // Smoothly rotate to this new direction
+        float rotationTime = 0.5f;
+        timer = 0f;
+        Quaternion startRotation = transform.rotation;
+        Quaternion targetRotation = Quaternion.LookRotation(newForward);
+        
+        while (timer < rotationTime)
+        {
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, timer / rotationTime);
+            timer += Time.deltaTime;
+            yield return null;
+        }
+        
+        // Ensure final rotation is exactly what we want
+        transform.rotation = targetRotation;
+        
+        // Now re-enable wandering with proper initialization
+        if (wanderingBehavior != null)
+        {
+            wanderingBehavior.enabled = true;
+            wanderingBehavior.SetWanderingEnabled(true);
+            isWandering = true;
+            
+            // Force the wandering behavior to start in idle state
+            wanderingBehavior.ForceStartWithIdle();
+            
+            // Force the wandering behavior to pick a new waypoint in the direction we're facing
+            wanderingBehavior.ForceNewWaypointInDirection(transform.forward);
+        }
+    }
+    
+    // Helper method to update animations
+    private void UpdateAnimation(bool isWalking)
+    {
+        if (animController != null)
+        {
+            animController.SetWalking(isWalking);
+        }
+    }
+    
+    // Modify FaceTarget method to use the higher rotation speed value
+    private void FaceTarget(Vector3 target)
+    {
+        // Skip rotation if we're standing still after a kill
+        if (isStandingAfterKill)
+            return;
+        
+        Vector3 directionToTarget = target - transform.position;
+        directionToTarget.y = 0; // Keep rotation on Y axis only
+        
+        if (directionToTarget.magnitude > 0.1f)
+        {
+            // Use a higher rotation speed for more responsive turning
+            livingEntity.RotateTowards(directionToTarget, targetRotationSpeed);
+        }
+    }
+    
+    // Public method to set behavior mode at runtime
+    public void SetBehaviorMode(EnemyBehaviorMode mode)
+    {
+        behaviorMode = mode;
+    }
+    
+    // Public method to check current behavior mode
+    public EnemyBehaviorMode GetBehaviorMode()
+    {
+        return behaviorMode;
+    }
+    
+    // Public method to manually trigger aggro (for use by other systems)
+    public void TriggerAggro(LivingEntity aggressor)
+    {
+        hasBeenAttacked = true;
+        lastAttackedTime = Time.time;
+        
+        if (aggressor != null && !aggressor.IsDead)
+        {
+            currentTarget = aggressor;
+        }
+    }
+    
+    // Modify StandStillAfterKill method to be more thorough in stopping all movement
+    private IEnumerator StandStillAfterKill()
+    {
+        // Stop all movement and reset state
+        isMoving = false;
+        isWandering = false;
+        isStandingAfterKill = true; // Set the new state flag
+        UpdateAnimation(false);
+        
+        // Completely disable the wandering behavior component
+        if (wanderingBehavior != null)
+        {
+            wanderingBehavior.enabled = false;
+        }
+        
+        // Store the dead target reference temporarily, then clear current target
+        LivingEntity deadTarget = currentTarget;
+        currentTarget = null;
+        
+        // Save the current rotation and position to prevent any movement/spinning
+        Quaternion frozenRotation = transform.rotation;
+        Vector3 frozenPosition = transform.position;
+        
+        // Temporarily disable any components that might cause movement
+        Rigidbody rb = GetComponent<Rigidbody>();
+        bool hadRigidbodyKinematic = false;
+        if (rb != null)
+        {
+            hadRigidbodyKinematic = rb.isKinematic;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+        }
+        
+        // Tell the living entity not to rotate for this duration
+        if (livingEntity != null)
+        {
+            livingEntity.SetRotationLocked(true);
+        }
+        
+        // Temporarily disable this script (except for the coroutine)
+        this.enabled = false;
+        
+        // Wait period - during this time, we'll continuously enforce the frozen rotation and position
+        float timer = 0;
+        float waitDuration = 3f;
+        while (timer < waitDuration)
+        {
+            // Force the rotation and position to stay the same
+            transform.rotation = frozenRotation;
+            transform.position = frozenPosition;
+            
+            timer += Time.deltaTime;
+            yield return null;
+        }
+        
+        // Re-enable this script
+        this.enabled = true;
+        
+        // Reset rotation control
+        if (livingEntity != null)
+        {
+            livingEntity.SetRotationLocked(false);
+        }
+        
+        // Restore rigidbody state if it was changed
+        if (rb != null)
+        {
+            rb.isKinematic = hadRigidbodyKinematic;
+        }
+        
+        // Reset the standing after kill state
+        isStandingAfterKill = false;
+        
+        // Return to wandering
+        ReturnToWandering();
+    }
+
+    // Keep both collision detection methods
+    private void OnCollisionEnter(Collision collision)
+    {
+        // Check if the collider is in the MapBorder layer
+        if (collision.gameObject.layer == LayerMask.NameToLayer("MapBorder"))
+        {
+            // Get the collision normal
+            Vector3 normal = collision.contacts[0].normal;
+            normal.y = 0; // Keep on horizontal plane
+            normal.Normalize();
+            
+            // Simple turn around - move slightly away from boundary
+            transform.position += normal * 0.5f;
+            
+            // Turn to face away from the boundary (with slight randomness)
+            float randomAngle = Random.Range(-30f, 30f);
+            Vector3 newDirection = Quaternion.Euler(0, randomAngle, 0) * normal;
+            
+            // Set the new direction for wandering
+            transform.rotation = Quaternion.LookRotation(newDirection);
+            
+            // Force the wandering behavior to pick a new waypoint in this direction
+            if (wanderingBehavior != null)
+            {
+                wanderingBehavior.ForceNewWaypointInDirection(newDirection);
+            }
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        // Check if the collider is in the MapBorder layer
+        if (other.gameObject.layer == LayerMask.NameToLayer("MapBorder"))
+        {
+            // Calculate direction from center of border to enemy
+            Vector3 directionToCenter = (other.bounds.center - transform.position).normalized;
+            directionToCenter.y = 0; // Keep on same Y level
+            directionToCenter.Normalize();
+            
+            // Move slightly away from boundary
+            transform.position += directionToCenter * 0.5f;
+            
+            // Turn to face away from the boundary (with slight randomness)
+            float randomAngle = Random.Range(-30f, 30f);
+            Vector3 newDirection = Quaternion.Euler(0, randomAngle, 0) * directionToCenter;
+            
+            // Set the new direction for wandering
+            transform.rotation = Quaternion.LookRotation(newDirection);
+            
+            // Force the wandering behavior to pick a new waypoint in this direction
+            if (wanderingBehavior != null)
+            {
+                wanderingBehavior.ForceNewWaypointInDirection(newDirection);
+            }
+        }
+    }
+} 

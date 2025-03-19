@@ -1,0 +1,336 @@
+using UnityEngine;
+using System.Collections;
+
+public class EnemyAI : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    [SerializeField] private float attackDistance = 1.5f; // Distance at which to attack
+    [SerializeField] private float detectionFollowRange = 10f; // Max range to follow player after detection
+    
+    [Header("Attack Settings")]
+    [SerializeField] private float attackInterval = 1.5f; // Minimum time between attacks
+    [SerializeField] private float minAttackDistance = 1.0f; // Minimum distance required to attack player
+    
+    [Header("References")]
+    [SerializeField] private AnimationController animController;
+    [SerializeField] public LivingEntity livingEntity;
+    
+    // Internal states
+    private bool isMoving = false;
+    private float lastAttackTime = -999f;
+    private LivingEntity currentTarget = null;
+    private AIWandering wanderingBehavior;
+    private Vector3 lastKnownPlayerPosition;
+    private bool isChasing = false;
+    
+    private MapBoundary mapBoundary;
+    
+    private void Start()
+    {
+        // Get components if not set
+        if (livingEntity == null)
+            livingEntity = GetComponent<LivingEntity>();
+            
+        if (animController == null)
+            animController = GetComponent<AnimationController>();
+            
+        // Get reference to the wandering behavior
+        wanderingBehavior = GetComponent<AIWandering>();
+        
+        // Ensure entity is set to be destroyed after death
+        if (livingEntity != null)
+        {
+            // Subscribe to death event
+            livingEntity.OnDeath.AddListener(HandleDeath);
+            
+            // Make sure destruction settings are properly configured
+            livingEntity.SetDestroyOnDeath(true, 5f);
+        }
+        
+        // Start idle
+        UpdateAnimation(false);
+        
+        // Find the boundary
+        mapBoundary = FindObjectOfType<MapBoundary>();
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe from death event to prevent memory leaks
+        if (livingEntity != null)
+        {
+            livingEntity.OnDeath.RemoveListener(HandleDeath);
+        }
+    }
+    
+    private void HandleDeath()
+    {
+        if (wanderingBehavior != null)
+            wanderingBehavior.enabled = false;
+        
+        isMoving = false;
+        isChasing = false;
+        
+        enabled = false;
+    }
+    
+    private void Update()
+    {
+        // Don't do anything if dead
+        if (livingEntity == null || livingEntity.IsDead)
+            return;
+        
+        // Check if we have any targets in range detected by our hitbox
+        if (livingEntity.HasTargetsInRange())
+        {
+            // Get the closest valid target from the livingEntity
+            currentTarget = livingEntity.GetClosestValidTarget();
+            
+            // If we found a target, start chasing
+            if (currentTarget != null && !currentTarget.IsDead)
+            {
+                // Disable wandering behavior while chasing
+                if (wanderingBehavior != null)
+                    wanderingBehavior.SetWanderingEnabled(false);
+                
+                isChasing = true;
+                lastKnownPlayerPosition = currentTarget.transform.position;
+                
+                // Chase and attack logic
+                ChaseAndAttackTarget();
+            }
+            else
+            {
+                ReturnToWandering();
+            }
+        }
+        // If we were chasing but lost the target, check if we should continue to last known position
+        else if (isChasing)
+        {
+            float distanceToLastKnown = Vector3.Distance(transform.position, lastKnownPlayerPosition);
+            
+            // If we're still within follow range of the last known position, continue moving there
+            if (distanceToLastKnown > attackDistance && distanceToLastKnown < detectionFollowRange)
+            {
+                isMoving = true;
+                UpdateAnimation(true);
+                
+                // Face and move towards last known position
+                FaceTarget(lastKnownPlayerPosition);
+                
+                // Check bounds before moving
+                MoveWithBoundaryCheck(transform.forward);
+                
+                // If we've reached the last known position and still don't see the player, return to wandering
+                if (distanceToLastKnown <= attackDistance)
+                {
+                    ReturnToWandering();
+                }
+            }
+            else
+            {
+                ReturnToWandering();
+            }
+        }
+    }
+    
+    // New method to handle movement with boundary checking
+    private void MoveWithBoundaryCheck(Vector3 direction)
+    {
+        // Calculate the next position
+        Vector3 nextPosition = transform.position + direction * livingEntity.moveSpeed * Time.deltaTime;
+        
+        // Check if the next position is within bounds
+        if (mapBoundary != null && !mapBoundary.IsWithinBounds(nextPosition))
+        {
+            // Get the nearest safe position inside the boundary
+            Vector3 safePosition = mapBoundary.GetNearestPointInBounds(nextPosition);
+            
+            // Calculate new direction along the boundary
+            Vector3 redirectedDirection = (safePosition - transform.position).normalized;
+            
+            // Update facing direction
+            transform.forward = redirectedDirection;
+            
+            // Move in the redirected direction
+            transform.position += redirectedDirection * livingEntity.moveSpeed * Time.deltaTime;
+        }
+        else
+        {
+            // Move normally if within bounds
+            transform.position += direction * livingEntity.moveSpeed * Time.deltaTime;
+        }
+    }
+    
+    private void ChaseAndAttackTarget()
+    {
+        // Get distance to target
+        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.transform.position);
+        
+        // If we're close enough to attack
+        if (distanceToTarget <= minAttackDistance)
+        {
+            // Stop moving
+            isMoving = false;
+            UpdateAnimation(false);
+            
+            // Face the target
+            FaceTarget(currentTarget.transform.position);
+            
+            // Try to attack if cooldown has passed
+            if (Time.time >= lastAttackTime + attackInterval)
+            {
+                if (livingEntity.TryAttack())
+                {
+                    lastAttackTime = Time.time;
+                }
+            }
+        }
+        // Otherwise, move towards the target
+        else
+        {
+            // Make sure we're actively moving and animate correctly
+            isMoving = true;
+            UpdateAnimation(true);
+            
+            // Face and move towards target
+            FaceTarget(currentTarget.transform.position);
+            
+            // Move with boundary check instead of direct position change
+            MoveWithBoundaryCheck(transform.forward);
+        }
+    }
+    
+    private void ReturnToWandering()
+    {
+        isChasing = false;
+        currentTarget = null;
+        
+        // Stop moving
+        isMoving = false;
+        UpdateAnimation(false);
+        
+        // Re-enable wandering behavior
+        if (wanderingBehavior != null)
+            wanderingBehavior.SetWanderingEnabled(true);
+    }
+    
+    // Helper method to update animations - modified to work with blend tree
+    private void UpdateAnimation(bool isWalking)
+    {
+        if (animController != null)
+        {
+            // First, ensure animation state is forcefully updated
+            animController.SetWalking(isWalking);
+            
+            // Get access to the animator to verify blend tree parameter
+            Animator animator = animController.Animator;
+            if (animator != null)
+            {
+                // Directly check and fix the WalkSpeed parameter that controls the blend tree
+                float currentWalkSpeed = animator.GetFloat("WalkSpeed");
+                
+                // If we should be walking but walk speed isn't properly set
+                if (isWalking && currentWalkSpeed < 0.9f)
+                {
+                    // Force the blend tree parameter directly
+                    animator.SetFloat("WalkSpeed", 1f);
+                    
+                    // Also make sure the boolean is set for any state transitions
+                    animator.SetBool("Walk", true);
+                    animator.SetBool("Idle", false);
+                }
+                // If we should be idle but walk speed isn't properly set
+                else if (!isWalking && currentWalkSpeed > 0.1f)
+                {
+                    // Force the blend tree parameter directly
+                    animator.SetFloat("WalkSpeed", 0f);
+                    
+                    // Also make sure the boolean is set for any state transitions
+                    animator.SetBool("Walk", false);
+                    animator.SetBool("Idle", true);
+                }
+            }
+        }
+    }
+    
+    private void FaceTarget(Vector3 target)
+    {
+        Vector3 directionToTarget = target - transform.position;
+        directionToTarget.y = 0; // Keep rotation on Y axis only
+        
+        if (directionToTarget != Vector3.zero)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(directionToTarget);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, 
+                targetRotation, 
+                livingEntity.rotationSpeed * Time.deltaTime
+            );
+        }
+    }
+
+    private void LateUpdate()
+    {
+        // This runs after all Updates to ensure animation state is correct
+        if (livingEntity != null && !livingEntity.IsDead)
+        {
+            // Enforce animation state based on current movement status
+            if (isMoving)
+            {
+                ForceWalkingAnimation();
+            }
+            else
+            {
+                ForceIdleAnimation();
+            }
+        }
+    }
+
+    // New method to force walking animation state
+    private void ForceWalkingAnimation()
+    {
+        if (animController != null)
+        {
+            Animator animator = animController.Animator;
+            if (animator != null)
+            {
+                // Directly set the blend tree parameter to walking (1.0)
+                animator.SetFloat("WalkSpeed", 1.0f);
+                
+                // Set boolean parameters for state transitions
+                animator.SetBool("Walk", true);
+                animator.SetBool("Idle", false);
+                
+                // Make sure other states are disabled
+                animator.SetBool("Attack", false);
+                animator.SetBool("Eat", false);
+            }
+        }
+    }
+
+    // New method to force idle animation state
+    private void ForceIdleAnimation()
+    {
+        if (animController != null)
+        {
+            Animator animator = animController.Animator;
+            if (animator != null)
+            {
+                // Directly set the blend tree parameter to idle (0.0)
+                animator.SetFloat("WalkSpeed", 0.0f);
+                
+                // Set boolean parameters for state transitions
+                animator.SetBool("Walk", false);
+                animator.SetBool("Idle", true);
+                
+                // Only force idle if we're not in an attack or other priority state
+                if (!livingEntity.IsAttacking)
+                {
+                    animator.SetBool("Attack", false);
+                    animator.SetBool("Eat", false);
+                }
+            }
+        }
+    }
+} 

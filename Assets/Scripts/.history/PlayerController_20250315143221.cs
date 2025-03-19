@@ -1,0 +1,799 @@
+using UnityEngine;
+using System.Collections.Generic;
+using System.Collections;
+using UnityEngine.EventSystems;
+using CandyCoded.HapticFeedback;
+
+public class PlayerController : MonoBehaviour
+{
+    [Header("Ant Movement Settings")]
+    [SerializeField] private float acceleration = 8f;
+    [SerializeField] private float deceleration = 10f;
+    
+    [Header("Camera Settings")]
+    [SerializeField] private Transform cameraTransform;
+    
+    [Header("Animation")]
+    [SerializeField] private AnimationController animController;
+    
+    [Header("Combat")]
+    [SerializeField] private LivingEntity livingEntity;
+    private bool autoAttackEnabled = true; // Flag to enable/disable auto-attack
+    private Coroutine autoAttackCoroutine; // Reference to auto-attack coroutine
+    private EntityHitbox playerHitbox; // Reference to player's hitbox
+
+    [Header("UI Helper")]
+    [SerializeField] public UIHelper uiHelper;
+
+    [Header("Mobile Controls")]
+    [SerializeField] private OnScreenJoystick joystick;
+
+    [Header("Border Settings")]
+    [SerializeField] private bool showBorderMessages = true;
+    [SerializeField] private float borderMessageCooldown = 0.5f;
+    private float lastBorderMessageTime = 0f;
+    // Add this to track collision with map borders
+    private bool isAtMapBorder = false;
+    // Track the normal direction of the boundary
+    private Vector3 borderNormal = Vector3.zero;
+
+    // Movement variables
+    private Vector3 moveDirection;
+    private float currentSpeed;
+    private Transform bodyTransform; // Optional: if you have a separate body mesh
+
+    public Transform spawnPoint;
+    
+    // Add this variable to track if we're already showing a boundary message
+    private bool isShowingBoundaryMessage = false;
+
+    // Add this field to track enemies in range
+    private List<LivingEntity> enemiesInRange = new List<LivingEntity>();
+
+    // Add these debug variables
+    [Header("Auto Attack")]
+    [SerializeField] private bool showDebugMessages = true;
+
+    private void Start()
+    {
+        // If no camera is assigned, try to find the main camera
+        if (cameraTransform == null)
+            cameraTransform = Camera.main.transform;
+            
+        if (animController == null)
+            animController = GetComponent<AnimationController>();
+            
+        // Optional: If you have a separate body mesh transform
+        bodyTransform = transform.Find("Body");
+        if (bodyTransform == null)
+            bodyTransform = transform; // Use main transform if no body found
+        
+        if (livingEntity == null)
+            livingEntity = GetComponent<LivingEntity>();
+        
+        // Subscribe to death event if not already done
+        if (livingEntity != null)
+        {
+            livingEntity.OnDeath.AddListener(HandlePlayerDeath);
+        }
+        
+        // Get the player's hitbox and subscribe to enemy detection events
+        playerHitbox = GetComponentInChildren<EntityHitbox>();
+        if (playerHitbox != null)
+        {
+            playerHitbox.OnPlayerEnterHitbox += HandleEnemyDetected;
+            playerHitbox.OnPlayerExitHitbox += HandleEnemyLost;
+            
+            if (showDebugMessages)
+            {
+                Debug.Log("Successfully subscribed to hitbox events");
+            }
+        }
+        else
+        {
+            Debug.LogError("Player hitbox not found. Auto-attack functionality will not work.");
+            
+            // Try to find the hitbox in a different way
+            EntityHitbox[] hitboxes = GetComponentsInChildren<EntityHitbox>(true);
+            if (hitboxes.Length > 0)
+            {
+                playerHitbox = hitboxes[0];
+                playerHitbox.OnPlayerEnterHitbox += HandleEnemyDetected;
+                playerHitbox.OnPlayerExitHitbox += HandleEnemyLost;
+                Debug.Log("Found hitbox through alternative method");
+            }
+        }
+        
+        // Start a periodic check for enemies in range
+        StartCoroutine(CheckForEnemiesInRange());
+        
+        // Make sure auto-attack is enabled by default
+        autoAttackEnabled = true;
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe to prevent memory leaks
+        if (livingEntity != null)
+        {
+            livingEntity.OnDeath.RemoveListener(HandlePlayerDeath);
+        }
+        
+        // Unsubscribe from hitbox events
+        if (playerHitbox != null)
+        {
+            playerHitbox.OnPlayerEnterHitbox -= HandleEnemyDetected;
+            playerHitbox.OnPlayerExitHitbox -= HandleEnemyLost;
+        }
+        
+        // Stop auto-attack coroutine if it's running
+        if (autoAttackCoroutine != null)
+        {
+            StopCoroutine(autoAttackCoroutine);
+            autoAttackCoroutine = null;
+        }
+    }
+    
+    private void HandlePlayerDeath()
+    {
+        enabled = false;
+        
+        StartCoroutine(ReviveAfterDelay(5f));
+        
+    }
+
+    private IEnumerator ReviveAfterDelay(float delay)
+    {
+        // Show initial death message
+        if (uiHelper != null && uiHelper.informPlayerText != null)
+            uiHelper.ShowInformText($"You are dead. Revive in {delay} seconds.");
+        
+        // Countdown logic
+        float remainingTime = delay;
+        while (remainingTime > 0)
+        {
+            // Wait one second
+            yield return new WaitForSeconds(1f);
+            
+            // Decrease the counter
+            remainingTime -= 1f;
+            
+            // Update the text with the new countdown value
+            if (uiHelper != null && uiHelper.informPlayerText != null)
+                uiHelper.ShowInformText($"You are dead. Revive in {Mathf.CeilToInt(remainingTime)} seconds.");
+        }
+        
+        // Set health to non-zero value to trigger auto-revive in LivingEntity
+        if (livingEntity != null)
+        {
+            // We can set health directly to 50% of max health
+            livingEntity.SetHealth(livingEntity.MaxHealth * 0.5f);
+            
+            // Force update the health bar UI
+            PlayerHealthBarController healthBar = FindObjectOfType<PlayerHealthBarController>();
+            if (healthBar != null)
+            {
+                healthBar.UpdateHealthBar();
+            }
+            
+            // Make sure animation transitions back to idle state
+            if (animController != null)
+            {
+                // Wait a frame to ensure LivingEntity has processed the revive
+                yield return null;
+                
+                // Explicitly set idle animation
+                animController.SetIdle();
+            }
+            
+            // Re-enable player input
+            enabled = true;
+
+            transform.position = spawnPoint.position;
+            
+            // Clear the UI message
+            if (uiHelper != null && uiHelper.informPlayerText != null)
+                uiHelper.ShowInformText("You have been revived!");
+            
+        }
+    }
+
+    private void Update()
+    {
+        // Don't allow control if dead
+        if (animController != null && animController.IsAnimationPlaying("death"))
+            return;
+            
+        HandleInput();
+        HandleMovement();
+        HandleActions();
+    }
+    
+    private void HandleInput()
+    {
+        float horizontal = 0f;
+        float vertical = 0f;
+        
+        // Skip if eating or attacking
+        if (animController != null && 
+            (animController.IsAnimationPlaying("eat") || animController.IsAnimationPlaying("attack")))
+        {
+            moveDirection = Vector3.zero;
+            return;
+        }
+        
+        // For PC platforms, always check for keyboard input
+        if (!Application.isMobilePlatform)
+        {
+            // Direct key checks for more responsive controls
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+                vertical += 1f;
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+                vertical -= 1f;
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+                horizontal -= 1f;
+            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+                horizontal += 1f;
+        }
+        
+        // Use joystick input if available and add it to the keyboard input (if any)
+        if (joystick != null && joystick.IsDragging)
+        {
+            horizontal += joystick.Horizontal;
+            vertical += joystick.Vertical;
+            
+            // Add a small deadzone to prevent drift
+            if (Mathf.Abs(horizontal) < 0.1f) horizontal = 0;
+            if (Mathf.Abs(vertical) < 0.1f) vertical = 0;
+        }
+        // For mobile platforms without joystick active, fall back to regular input
+        else if (Application.isMobilePlatform)
+        {
+            // Traditional input system for mobile
+            horizontal = Input.GetAxis("Horizontal");
+            vertical = Input.GetAxis("Vertical");
+        }
+        
+        // Normalize input if it exceeds magnitude of 1
+        Vector2 inputVector = new Vector2(horizontal, vertical);
+        if (inputVector.magnitude > 1f)
+            inputVector = inputVector.normalized;
+        
+        horizontal = inputVector.x;
+        vertical = inputVector.y;
+        
+        // Get camera forward and right vectors (ignore y component)
+        Vector3 cameraForward = cameraTransform.forward;
+        cameraForward.y = 0;
+        cameraForward.Normalize();
+        
+        Vector3 cameraRight = cameraTransform.right;
+        cameraRight.y = 0;
+        cameraRight.Normalize();
+        
+        // Calculate movement direction relative to camera
+        moveDirection = (cameraForward * vertical + cameraRight * horizontal);
+        
+        // Normalize only if magnitude > 1 to allow for diagonal movement at same speed
+        if (moveDirection.magnitude > 1f)
+            moveDirection.Normalize();
+    }
+    
+    private void HandleMovement()
+    {
+        // Skip if we're dead or in another non-movable state
+        if (livingEntity == null || livingEntity.IsDead)
+            return;
+        
+        // Handle rotation independently of movement
+        // Rotate in place even if not moving forward
+        if (moveDirection.magnitude > 0.1f)
+        {
+            if (livingEntity != null)
+            {
+                // Increase rotation speed for snappier turning
+                livingEntity.RotateTowards(moveDirection, 5.0f);
+            }
+        }
+        
+        // Calculate target speed based on input magnitude
+        float targetSpeed = moveDirection.magnitude * livingEntity.moveSpeed;
+        
+        // If at map border, check if trying to move through border
+        if (isAtMapBorder && moveDirection.magnitude > 0.1f)
+        {
+            // Check if movement direction is against the border
+            // Since borderNormal now points inward, we WANT positive dot product
+            float movementWithBorder = Vector3.Dot(moveDirection, borderNormal);
+            
+            // If trying to move away from the center (negative dot product)
+            if (movementWithBorder < 0)
+            {
+                // Use a stronger correction - completely cancel the outward component
+                // and add a small force inward for better boundary enforcement
+                Vector3 correctedDirection = moveDirection - (borderNormal * movementWithBorder);
+                
+                // Add a small inward bias to ensure the player moves away from the boundary
+                correctedDirection += borderNormal * 0.1f;
+                
+                // Update movement direction with the corrected version
+                moveDirection = correctedDirection;
+                
+                // Make sure movement remains normalized if needed
+                if (moveDirection.magnitude > 1f)
+                    moveDirection.Normalize();
+                
+                // If movement becomes negligible after restriction, stop
+                if (moveDirection.magnitude < 0.01f)
+                    moveDirection = Vector3.zero;
+                
+                // Recalculate target speed with adjusted movement direction
+                targetSpeed = moveDirection.magnitude * livingEntity.moveSpeed;
+                
+                // Reduce speed when trying to move against the boundary
+                targetSpeed *= 0.5f;
+            }
+        }
+        
+        // Smoothly adjust current speed using acceleration/deceleration
+        float accelerationFactor = acceleration * Time.deltaTime;
+        float decelerationFactor = deceleration * Time.deltaTime;
+        
+        currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, 
+            targetSpeed > currentSpeed ? accelerationFactor : decelerationFactor);
+        
+        // Update animation state
+        if (animController != null)
+        {
+            bool shouldBeWalking = currentSpeed > 0.1f;
+            if (shouldBeWalking != animController.IsAnimationPlaying("walk"))
+            {
+                animController.SetWalking(shouldBeWalking);
+            }
+        }
+        
+        // Apply movement with current speed, but only in the forward direction
+        if (currentSpeed > 0.01f)
+        {
+            // One final boundary check before applying movement
+            Vector3 finalMoveDirection = transform.forward;
+            bool shouldMove = true;
+            
+            if (isAtMapBorder)
+            {
+                float moveThroughBorder = Vector3.Dot(finalMoveDirection, borderNormal);
+                if (moveThroughBorder < -0.1f) // If strongly moving against the boundary
+                {
+                    // If trying to move outward from the boundary, significantly reduce movement
+                    shouldMove = false;
+                    currentSpeed = 0;
+                }
+            }
+            
+            if (shouldMove)
+            {
+                if (livingEntity != null)
+                {
+                    // Apply the final movement with current speed
+                    livingEntity.MoveInDirection(finalMoveDirection, currentSpeed / livingEntity.moveSpeed);
+                }
+                else
+                {
+                    // Fallback if living entity not available
+                    Vector3 motion = transform.forward * currentSpeed * Time.deltaTime;
+                    transform.position += motion;
+                }
+            }
+        }
+        else
+        {
+            // Stop movement when speed is near zero
+            Rigidbody rb = GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.velocity = new Vector3(0, rb.velocity.y, 0);
+            }
+        }
+    }
+    
+    private void HandleActions()
+    {
+        if (animController == null)
+            return;
+    }
+
+    // Updated helper method to detect UI clicks/touches for both desktop and mobile
+    private bool IsPointerOverUIElement()
+    {
+        // Check if the pointer is over a UI element
+        if (EventSystem.current == null)
+            return false;
+
+        // Handle mobile touch input
+        if (Application.isMobilePlatform)
+        {
+            if (Input.touchCount > 0)
+            {
+                Touch touch = Input.GetTouch(0);
+                int id = touch.fingerId;
+                return EventSystem.current.IsPointerOverGameObject(id);
+            }
+            return false;
+        }
+        // Handle desktop mouse input
+        else
+        {
+            return EventSystem.current.IsPointerOverGameObject();
+        }
+    }
+
+    // Modify the OnAttackButtonPressed method to stop movement and just attack
+    public bool OnAttackButtonPressed()
+    {
+        // Don't attack if dead
+        if (animController == null || animController.IsAnimationPlaying("death"))
+            return false;
+        
+        // Check if we're already in the attack animation
+        if (animController.IsAnimationPlaying("attack"))
+            return false;
+        
+        if (livingEntity != null)
+        {
+            // Stop movement when attacking
+            currentSpeed = 0;
+            moveDirection = Vector3.zero;
+            
+            // Try to attack and get whether it was successful
+            bool attackResult = livingEntity.TryAttack();
+            
+            // If attack was successful, play the attack animation
+            if (attackResult)
+            {
+                // Regular attack is already handled by livingEntity.TryAttack()
+                return true;
+            }
+            else if (uiHelper != null)
+            {
+                // Handle cooldown as before
+                float remainingCooldown = livingEntity.RemainingAttackCooldown;
+                if (remainingCooldown > 0)
+                {
+                    StartCoroutine(UpdateCooldownTimerText(remainingCooldown));
+                }
+            }
+        }
+        return false;
+    }
+
+    // New coroutine to update the cooldown timer text
+    private IEnumerator UpdateCooldownTimerText(float initialCooldown)
+    {
+        // Store initial cooldown value
+        float remainingCooldown = initialCooldown;
+        
+        // Update the UI approximately every 0.1 seconds
+        while (remainingCooldown > 0)
+        {
+            // Format the cooldown time to one decimal place
+            string cooldownText = remainingCooldown.ToString("F1");
+            uiHelper.ShowInformText($"Attack on cooldown! Ready in {cooldownText}s");
+            
+            // Wait a short time before updating again
+            yield return new WaitForSeconds(0.1f);
+            
+            // Reduce the remaining cooldown by the elapsed time
+            remainingCooldown -= 0.1f;
+            
+            // Ensure we don't go below zero
+            remainingCooldown = Mathf.Max(0, remainingCooldown);
+            
+            // Break early if player is dead or the component is disabled
+            if (!enabled || (livingEntity != null && livingEntity.IsDead))
+                break;
+        }
+        
+        // When cooldown is done, just provide haptic feedback without the "Attack ready!" message
+        if (enabled && livingEntity != null && !livingEntity.IsDead)
+        {
+            // Provide haptic feedback to indicate attack is ready
+            HapticFeedback.LightFeedback();
+            
+            // Clear the cooldown message
+            uiHelper.HideInformText();
+        }
+    }
+
+    // Add this method to be called when an attack successfully lands
+    public void OnAttackLanded()
+    {
+        // Trigger haptic feedback when the attack actually lands
+        HapticFeedback.MediumFeedback();
+    }
+
+    // Revised border detection system
+    private void OnTriggerExit(Collider other)
+    {
+        // Check if the collider is in the MapBorder layer
+        if (other.gameObject.layer == LayerMask.NameToLayer("MapBorder"))
+        {
+            // We're trying to exit the playable area
+            isAtMapBorder = true;
+            
+            // The normal should point back INTO the sphere (toward center)
+            if (other is SphereCollider sphereCollider)
+            {
+                // Get the center of the sphere in world space
+                Vector3 sphereCenter = other.transform.TransformPoint(sphereCollider.center);
+                // Calculate direction from player to sphere center
+                borderNormal = (sphereCenter - transform.position).normalized;
+            }
+            else
+            {
+                // For non-sphere colliders, try to get closest point on the collider
+                Vector3 closestPoint = other.ClosestPoint(transform.position);
+                // Direction from player to closest point (back toward inside)
+                borderNormal = (closestPoint - transform.position).normalized;
+            }
+            
+            // Immediately move the player back inside the boundary with a stronger force
+            if (livingEntity != null)
+            {
+                // Push the player back toward the center with a stronger force
+                livingEntity.MoveInDirection(borderNormal, 0.5f); // Increased from 0.2f
+            }
+            else
+            {
+                // Fallback direct position adjustment with stronger push
+                transform.position += borderNormal * 0.5f; // Increased from 0.2f
+            }
+            
+            // Only show messages if enabled and not on cooldown
+            if (showBorderMessages && Time.time >= lastBorderMessageTime + borderMessageCooldown)
+            {
+                // Show the error message in debug console
+                Debug.LogError($"Player attempted to exit playable area: {other.gameObject.name}");
+                
+                // Display UI message if we have a UI helper
+                if (uiHelper != null)
+                {
+                    uiHelper.ShowInformText("You've reached the boundary of the playable area!");
+                }
+                
+                // Add haptic feedback for mobile
+                HapticFeedback.LightFeedback();
+                
+                // Set the cooldown
+                lastBorderMessageTime = Time.time;
+            }
+        }
+    }
+    
+    private void OnTriggerEnter(Collider other)
+    {
+        // Check if the collider is in the MapBorder layer
+        if (other.gameObject.layer == LayerMask.NameToLayer("MapBorder"))
+        {
+            // We're back inside the playable area
+            isAtMapBorder = false;
+            borderNormal = Vector3.zero;
+        }
+    }
+
+    // We don't need OnTriggerStay for this approach
+    private void OnTriggerStay(Collider other)
+    {
+        // This method is intentionally empty
+        // We only care about exit and re-entry
+    }
+
+    // Replace the old CheckForBoundaries method
+    private void CheckForBoundaries()
+    {
+        // This method is now handled by the trigger collision detection
+        return;
+    }
+
+    // Modify the CheckForEnemiesInRange method to rely solely on the hitbox detection
+    private IEnumerator CheckForEnemiesInRange()
+    {
+        while (enabled)
+        {
+            yield return new WaitForSeconds(1.0f); // Less frequent checks since hitbox is primary detection
+            
+            // This is now just a backup system to clean up the enemies list
+            // and restart auto-attack if needed
+            
+            // Clean up dead enemies and enemies that moved too far away
+            for (int i = enemiesInRange.Count - 1; i >= 0; i--)
+            {
+                LivingEntity enemy = enemiesInRange[i];
+                if (enemy == null || enemy.IsDead)
+                {
+                    enemiesInRange.RemoveAt(i);
+                }
+            }
+            
+            // If we have enemies in range but auto-attack isn't running, restart it
+            if (enemiesInRange.Count > 0 && autoAttackEnabled && 
+                livingEntity != null && !livingEntity.IsDead && 
+                autoAttackCoroutine == null)
+            {
+                autoAttackCoroutine = StartCoroutine(AutoAttackCoroutine());
+            }
+        }
+    }
+
+    // Handle enemy detection from hitbox
+    private void HandleEnemyDetected(LivingEntity enemy)
+    {
+        if (showDebugMessages)
+        {
+            Debug.Log($"Enemy detected: {enemy.name}, Layer: {LayerMask.LayerToName(enemy.gameObject.layer)}");
+        }
+        
+        // Don't start auto-attack if player is dead or auto-attack is disabled
+        if (livingEntity == null || livingEntity.IsDead || !autoAttackEnabled)
+            return;
+        
+        // Check if this is an enemy (try both by tag and by layer)
+        bool isEnemy = enemy.gameObject.layer == LayerMask.NameToLayer("Insects") || 
+                       enemy.CompareTag("Enemy");
+        
+        if (isEnemy && !enemy.IsDead)
+        {
+            if (showDebugMessages)
+            {
+                Debug.Log($"Valid enemy detected for auto-attack: {enemy.name}");
+            }
+            
+            // Add enemy to our tracking list if not already there
+            if (!enemiesInRange.Contains(enemy))
+            {
+                enemiesInRange.Add(enemy);
+            }
+            
+            // Start auto-attack coroutine if not already running
+            if (autoAttackCoroutine == null)
+            {
+                autoAttackCoroutine = StartCoroutine(AutoAttackCoroutine());
+            }
+        }
+    }
+
+    // Handle enemy leaving hitbox
+    private void HandleEnemyLost(LivingEntity enemy)
+    {
+        // Remove the enemy from our tracking list
+        if (enemiesInRange.Contains(enemy))
+        {
+            enemiesInRange.Remove(enemy);
+        }
+        
+        // If no more enemies in range, stop auto-attacking
+        if (enemiesInRange.Count == 0)
+        {
+            // Stop auto-attack coroutine if it's running
+            if (autoAttackCoroutine != null)
+            {
+                StopCoroutine(autoAttackCoroutine);
+                autoAttackCoroutine = null;
+            }
+        }
+    }
+
+    // Improved auto-attack coroutine
+    private IEnumerator AutoAttackCoroutine()
+    {
+        if (showDebugMessages)
+        {
+            Debug.Log("Auto-attack coroutine started");
+        }
+        
+        while (enabled && livingEntity != null && !livingEntity.IsDead && autoAttackEnabled)
+        {
+            // Clean up any dead enemies from our list
+            enemiesInRange.RemoveAll(enemy => enemy == null || enemy.IsDead);
+            
+            // Check if there are enemies in range
+            if (enemiesInRange.Count > 0)
+            {
+                // Find the closest enemy to face
+                LivingEntity closestEnemy = null;
+                float closestDistance = float.MaxValue;
+                
+                foreach (LivingEntity enemy in enemiesInRange)
+                {
+                    float distance = Vector3.Distance(transform.position, enemy.transform.position);
+                    if (distance < closestDistance)
+                    {
+                        closestDistance = distance;
+                        closestEnemy = enemy;
+                    }
+                }
+                
+                // Face the closest enemy before attacking
+                if (closestEnemy != null)
+                {
+                    Vector3 directionToEnemy = (closestEnemy.transform.position - transform.position).normalized;
+                    livingEntity.RotateTowards(directionToEnemy, 10f); // Faster rotation for auto-attack
+                    
+                    // Wait a small amount of time to allow rotation
+                    yield return new WaitForSeconds(0.1f);
+                }
+                
+                if (showDebugMessages)
+                {
+                    Debug.Log($"Attempting auto-attack with {enemiesInRange.Count} enemies in range");
+                }
+                
+                // Try to attack
+                bool attackSuccessful = OnAttackButtonPressed();
+                
+                if (showDebugMessages)
+                {
+                    Debug.Log($"Attack attempt result: {(attackSuccessful ? "Success" : "Failed")}");
+                }
+                
+                // If attack was successful, wait for the cooldown to finish
+                if (attackSuccessful)
+                {
+                    // Wait until the attack cooldown is complete
+                    while (livingEntity.RemainingAttackCooldown > 0)
+                    {
+                        yield return null; // Wait one frame
+                    }
+                }
+                else
+                {
+                    // If attack wasn't successful (likely on cooldown), wait a short time before trying again
+                    yield return new WaitForSeconds(0.1f);
+                }
+            }
+            else
+            {
+                if (showDebugMessages)
+                {
+                    Debug.Log("No enemies in range, exiting auto-attack");
+                }
+                // No targets in range, exit the coroutine
+                break;
+            }
+        }
+        
+        // Reset the coroutine reference
+        autoAttackCoroutine = null;
+        
+        if (showDebugMessages)
+        {
+            Debug.Log("Auto-attack coroutine ended");
+        }
+    }
+
+    // Public method to toggle auto-attack
+    public void ToggleAutoAttack()
+    {
+        autoAttackEnabled = !autoAttackEnabled;
+        
+        // If disabled, stop any ongoing auto-attack
+        if (!autoAttackEnabled && autoAttackCoroutine != null)
+        {
+            StopCoroutine(autoAttackCoroutine);
+            autoAttackCoroutine = null;
+        }
+        // If enabled and there are enemies in range, start auto-attacking
+        else if (autoAttackEnabled && livingEntity != null && 
+                 enemiesInRange.Count > 0 && 
+                 autoAttackCoroutine == null)
+        {
+            autoAttackCoroutine = StartCoroutine(AutoAttackCoroutine());
+        }
+        
+        // Inform the player of the auto-attack state change
+        if (uiHelper != null)
+        {
+            string message = autoAttackEnabled ? "Auto-attack enabled" : "Auto-attack disabled";
+            uiHelper.ShowInformText(message);
+        }
+    }
+}

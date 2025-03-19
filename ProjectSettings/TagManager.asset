@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Ground
+  - Ally
+  - ChitinIcon
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - Insects
+  - Player
+  - PlayerHitbox
+  - InsectHitbox
+  - Loot
+  - PlayerNest1
+  - Obstacle
+  - Ally
+  - AllyHitbox
+  - CarriedLoot
+  - NonpickableLoot
+  - ChitinIcon
+  - MapBorder
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: TouchableUI
+    uniqueID: 3145407113
+    locked: 0
