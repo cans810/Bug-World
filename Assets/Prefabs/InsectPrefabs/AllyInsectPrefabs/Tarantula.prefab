@@ -371,7 +371,7 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 2.3082583
+  m_Radius: 3.34
   m_Height: 4.6165166
   m_Direction: 2
   m_Center: {x: 0, y: 0, z: -0.6607403}
@@ -536,10 +536,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.95198965
-  m_Height: 3.6266754
+  m_Radius: 1.4532423
+  m_Height: 4.692027
   m_Direction: 2
-  m_Center: {x: 0, y: 0.9507573, z: -0.8014764}
+  m_Center: {x: 0, y: 1.3935498, z: -0.4301707}
 --- !u!114 &1363054789695418613
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -568,17 +568,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 35
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 15
   attackCooldown: 0.3
   attackRange: 1
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -685,7 +683,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentMode: 0
-  followDistance: 3
+  followDistance: 1
   offsetAngle: 45
   speedMultiplier: 1.2
   animController: {fileID: 0}
@@ -696,13 +694,15 @@ MonoBehaviour:
   allyDetectionRadius: 1.2
   allyLayer:
     serializedVersion: 2
-    m_Bits: 8192
+    m_Bits: 0
   useMovementSmoothing: 1
   movementSmoothTime: 0.2
   showDebugInfo: 0
   enableAutoAttack: 1
   attackRangeBuffer: 1
   attackCheckInterval: 0.2
+  maxDistanceFromPlayer: 10
+  returnSpeedMultiplier: 1.25
 --- !u!1 &2287739435537572884
 GameObject:
   m_ObjectHideFlags: 0
@@ -856,7 +856,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 135, y: 135, z: 135}
+  m_LocalScale: {x: 184.79999, y: 184.79999, z: 184.79999}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1742510613001208218}
@@ -1471,7 +1471,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 2.78}
+  m_AnchoredPosition: {x: 0, y: 3.72}
   m_SizeDelta: {x: 1080, y: 1920}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &6586857620265498185
@@ -1593,7 +1593,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 135, y: 135, z: 135}
+  m_LocalScale: {x: 184.79999, y: 184.79999, z: 184.79999}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 6198347402220936333}

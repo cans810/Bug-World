@@ -2079,17 +2079,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 35
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 15
   attackCooldown: 0.3
   attackRange: 1
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -2187,6 +2185,8 @@ MonoBehaviour:
   boundaryRedirectionTime: 0
   inCombatStance: 0
   lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &2149550653385016163
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -534,7 +534,7 @@ Transform:
   m_GameObject: {fileID: 2564175484763343481}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 1.21, y: 1.78, z: 0.25}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 444.44446, y: 444.44446, z: 444.44446}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -907,10 +907,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 2.1134503
-  m_Height: 12.845664
+  m_Radius: 4.077269
+  m_Height: 13.977457
   m_Direction: 2
-  m_Center: {x: -0.30014673, y: 1.8740058, z: 1.6800427}
+  m_Center: {x: -1.5598233, y: 2.01, z: 0.99372864}
 --- !u!114 &8223141389804324949
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -939,17 +939,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 90
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 30
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 13
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -1056,7 +1054,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentMode: 0
-  followDistance: 3
+  followDistance: 1
   offsetAngle: 45
   speedMultiplier: 1.2
   animController: {fileID: 0}
@@ -1067,13 +1065,15 @@ MonoBehaviour:
   allyDetectionRadius: 1.2
   allyLayer:
     serializedVersion: 2
-    m_Bits: 8192
+    m_Bits: 0
   useMovementSmoothing: 1
   movementSmoothTime: 0.2
   showDebugInfo: 0
   enableAutoAttack: 1
   attackRangeBuffer: 1
   attackCheckInterval: 0.2
+  maxDistanceFromPlayer: 10
+  returnSpeedMultiplier: 1.25
 --- !u!1 &3033380103603862098
 GameObject:
   m_ObjectHideFlags: 0
@@ -2027,7 +2027,7 @@ Transform:
   m_GameObject: {fileID: 6238717541681453505}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 1.99}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2052,10 +2052,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 12.03
+  m_Radius: 9.9
   m_Height: 14.331134
   m_Direction: 2
-  m_Center: {x: 0, y: 0, z: 1.25}
+  m_Center: {x: -1.54, y: 0, z: 1.39}
 --- !u!114 &1495796992735173321
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2512,7 +2512,7 @@ Transform:
   m_GameObject: {fileID: 7297768136540593296}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 1.2099965, y: 1.78, z: 0.24998982}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 444.44446, y: 444.44446, z: 444.44446}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -2733,7 +2733,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1484896015872682504, guid: f026522049c651244b28eec9b427df92, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: -1.44
       objectReference: {fileID: 0}
     - target: {fileID: 1484896015872682504, guid: f026522049c651244b28eec9b427df92, type: 3}
       propertyPath: m_AnchoredPosition.y

@@ -148,7 +148,7 @@ CapsuleCollider:
   m_Radius: 1.1602159
   m_Height: 12.362688
   m_Direction: 2
-  m_Center: {x: 0, y: 1, z: -2.0287664}
+  m_Center: {x: 0, y: 1.23, z: -2.0287664}
 --- !u!114 &5922150924143313415
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -177,17 +177,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -285,6 +283,8 @@ MonoBehaviour:
   boundaryRedirectionTime: 0
   inCombatStance: 0
   lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &6173826448273827902
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -903,7 +903,7 @@ Transform:
   m_GameObject: {fileID: 2183527177320517115}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1.7777778, y: 1.7777778, z: 1.7777778}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2264,7 +2264,7 @@ Transform:
   m_GameObject: {fileID: 8891684482220234108}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 177.77779, y: 177.77773, z: 177.77773}
   m_ConstrainProportionsScale: 0
   m_Children:

@@ -1457,7 +1457,6 @@ GameObject:
   - component: {fileID: 7027301548348277783}
   - component: {fileID: 8991319320781943788}
   - component: {fileID: 1114587641488840904}
-  - component: {fileID: 4167588233894163631}
   - component: {fileID: 5359644123093121970}
   - component: {fileID: 7448078953652587152}
   - component: {fileID: 223204404350579907}
@@ -1588,15 +1587,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
   rotationSpeed: 20
   animator: {fileID: 0}
@@ -1628,34 +1625,6 @@ MonoBehaviour:
   hitSoundEffectName: Attack1
   useSoundEffectManager: 1
   hitSound: {fileID: 0}
---- !u!114 &4167588233894163631
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4937714343599223130}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 069b535dda6470742ba20c43b0d1bfb9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  minWanderDistance: 3
-  maxWanderDistance: 10
-  waypointReachedDistance: 0.5
-  minWaitTime: 1
-  maxWaitTime: 5
-  pathfindingUpdateInterval: 0.5
-  avoidObstacles: 1
-  obstacleDetectionRange: 2
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 0
-  animationController: {fileID: 0}
-  livingEntity: {fileID: 0}
-  restrictToSpawnArea: 1
-  maxWanderRadius: 2
-  showSpawnAreaGizmo: 1
 --- !u!114 &5359644123093121970
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1668,41 +1637,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 30774daf9dc542b40b0be5703a64d0f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackDistance: 1.5
-  targetRotationSpeed: 5
-  attackInterval: 1.5
-  minAttackDistance: 1
-  behaviorMode: 0
-  aggroMemoryDuration: 30
+  moveSpeed: 2
+  rotationSpeed: 3
+  fixedHeight: 2
+  minWanderDistance: 3
+  maxWanderDistance: 8
+  waypointReachedDistance: 1
+  minWaitTime: 2
+  maxWaitTime: 5
   animController: {fileID: 0}
   livingEntity: {fileID: 0}
-  entityHitbox: {fileID: 0}
-  avoidPlayerNest: 1
-  nestAvoidanceDistance: 0
-  nestLayerName: PlayerNest1
-  nestObjectName: Player Nest 1
-  isMoving: 0
-  isWandering: 0
-  lastAttackTime: -999
-  currentTarget: {fileID: 0}
-  wanderingBehavior: {fileID: 0}
-  hasBeenAttacked: 0
-  lastAttackedTime: -999
-  playerNestTransform: {fileID: 0}
-  nestRadius: 0
-  isStandingAfterKill: 0
-  isPlayerInHitbox: 0
-  isHittingBoundary: 0
-  boundaryRedirectionTime: 0
-  inCombatStance: 0
-  lastTargetPosition: {x: 0, y: 0, z: 0}
-  flyingHeight: 5
-  descentSpeed: 2
-  ascentSpeed: 1
-  hoverHeight: 1.5
-  attackHeightOffset: 0.5
-  attackDescentSpeed: 3
-  attackAscentSpeed: 2
+  restrictToSpawnArea: 1
+  maxWanderRadius: 10
+  showSpawnAreaGizmo: 1
 --- !u!114 &7448078953652587152
 MonoBehaviour:
   m_ObjectHideFlags: 0

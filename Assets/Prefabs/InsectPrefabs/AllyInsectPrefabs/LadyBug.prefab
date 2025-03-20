@@ -2008,17 +2008,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 10
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -2175,7 +2173,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentMode: 0
-  followDistance: 3
+  followDistance: 1
   offsetAngle: 45
   speedMultiplier: 1.2
   animController: {fileID: 0}
@@ -2186,13 +2184,15 @@ MonoBehaviour:
   allyDetectionRadius: 1.2
   allyLayer:
     serializedVersion: 2
-    m_Bits: 8192
+    m_Bits: 0
   useMovementSmoothing: 1
   movementSmoothTime: 0.2
   showDebugInfo: 0
   enableAutoAttack: 1
   attackRangeBuffer: 1
   attackCheckInterval: 0.2
+  maxDistanceFromPlayer: 10
+  returnSpeedMultiplier: 1.25
 --- !u!1001 &6444313705781111351
 PrefabInstance:
   m_ObjectHideFlags: 0

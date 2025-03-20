@@ -1949,8 +1949,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4541229264551196479}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 444.44446, y: 444.44446, z: 444.44446}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1977,7 +1977,7 @@ Transform:
   - {fileID: 4407538527410422337}
   - {fileID: 5567431098425461109}
   m_Father: {fileID: 4504526750816576001}
-  m_LocalEulerAnglesHint: {x: -89.98021, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
 --- !u!1 &4549771296560583291
 GameObject:
   m_ObjectHideFlags: 0
@@ -2197,7 +2197,7 @@ Transform:
   m_GameObject: {fileID: 5025216351062754485}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 4.4444447, y: 4.4444447, z: 4.4444447}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3386,10 +3386,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 3.3571668
-  m_Height: 12.86
+  m_Radius: 1.5032214
+  m_Height: 13.475225
   m_Direction: 2
-  m_Center: {x: 0, y: 0.95075744, z: 0.090358526}
+  m_Center: {x: 0, y: 1.64, z: 0.27703923}
 --- !u!114 &7439234674591815702
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3418,17 +3418,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -3526,6 +3524,8 @@ MonoBehaviour:
   boundaryRedirectionTime: 0
   inCombatStance: 0
   lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &6213389534401795133
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4054,10 +4054,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 1.5032214
-  m_Height: 13.475225
+  m_Radius: 3.44
+  m_Height: 14.969364
   m_Direction: 2
-  m_Center: {x: 0, y: 0, z: 0.27703923}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &4741926957441118013
 MonoBehaviour:
   m_ObjectHideFlags: 0

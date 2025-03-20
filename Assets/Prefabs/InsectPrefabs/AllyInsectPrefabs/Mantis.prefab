@@ -89,7 +89,7 @@ Transform:
   m_GameObject: {fileID: 225702630403426835}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1.7777778, y: 1.7777778, z: 1.7777778}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1019,7 +1019,7 @@ CapsuleCollider:
   m_Radius: 1.2090614
   m_Height: 6.0765586
   m_Direction: 2
-  m_Center: {x: 0, y: 1.0380118, z: -0.105014384}
+  m_Center: {x: 0, y: 1.28, z: -0.105014384}
 --- !u!114 &5119440939888078472
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1048,17 +1048,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -1165,7 +1163,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentMode: 0
-  followDistance: 3
+  followDistance: 1
   offsetAngle: 45
   speedMultiplier: 1.2
   animController: {fileID: 0}
@@ -1176,13 +1174,15 @@ MonoBehaviour:
   allyDetectionRadius: 1.2
   allyLayer:
     serializedVersion: 2
-    m_Bits: 8192
+    m_Bits: 0
   useMovementSmoothing: 1
   movementSmoothTime: 0.2
   showDebugInfo: 0
   enableAutoAttack: 1
   attackRangeBuffer: 1
   attackCheckInterval: 0.2
+  maxDistanceFromPlayer: 10
+  returnSpeedMultiplier: 1.25
 --- !u!1 &3652608520891298891
 GameObject:
   m_ObjectHideFlags: 0
@@ -1271,8 +1271,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4658353953275591392}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 177.77779, y: 177.77773, z: 177.77773}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1284,7 +1284,7 @@ Transform:
   - {fileID: 6545788471763937856}
   - {fileID: 8963740616744414079}
   m_Father: {fileID: 115554975662673998}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
 --- !u!1 &4723306214829572506
 GameObject:
   m_ObjectHideFlags: 0

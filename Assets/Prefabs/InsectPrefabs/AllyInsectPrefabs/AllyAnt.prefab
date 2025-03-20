@@ -208,17 +208,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 10
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 2
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -261,12 +259,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chitinPrefab: {fileID: 1751970566356553609, guid: 675b0c1c1c6362c4a99a1e3865be4a6d, type: 3}
-  scatterRadius: 1
+  minChitinToDrop: 1
+  maxChitinToDrop: 3
   dropHeight: 0
   upwardForceMin: 80
   upwardForceMax: 120
-  horizontalForce: 20
-  explosionRadius: 2
+  horizontalForceMin: 1
+  horizontalForceMax: 3
+  torqueForce: 0.3
+  collectionDelay: 0.8
   showDebugLogs: 0
 --- !u!114 &209879446764827029
 MonoBehaviour:
@@ -311,17 +312,19 @@ MonoBehaviour:
   livingEntity: {fileID: 7055816714277431829}
   joystick: {fileID: 0}
   avoidOtherAllies: 1
-  allyAvoidanceDistance: 0.4
-  allyDetectionRadius: 1
+  allyAvoidanceDistance: 1
+  allyDetectionRadius: 1.2
   allyLayer:
     serializedVersion: 2
-    m_Bits: 8192
+    m_Bits: 0
   useMovementSmoothing: 1
   movementSmoothTime: 0.2
   showDebugInfo: 0
   enableAutoAttack: 1
   attackRangeBuffer: 1
   attackCheckInterval: 0.2
+  maxDistanceFromPlayer: 10
+  returnSpeedMultiplier: 1.25
 --- !u!114 &-2927448447928671384
 MonoBehaviour:
   m_ObjectHideFlags: 0

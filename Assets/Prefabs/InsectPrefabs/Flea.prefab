@@ -99,7 +99,7 @@ Transform:
   m_GameObject: {fileID: 42189783018369709}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.25, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 0.8888889, y: 0.8888889, z: 0.8888889}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1352,17 +1352,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 10
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.1
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -1388,7 +1386,7 @@ MonoBehaviour:
   healthBarPrefab: {fileID: 0}
   showHealthBar: 1
   healthBarAnchor: {fileID: 0}
-  chitinAmount: 2
+  chitinAmount: 60
   hitSoundEffectName: Attack1
   useSoundEffectManager: 1
   hitSound: {fileID: 0}
@@ -1460,6 +1458,8 @@ MonoBehaviour:
   boundaryRedirectionTime: 0
   inCombatStance: 0
   lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &1725297510153047448
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1611,7 +1611,7 @@ Transform:
   m_GameObject: {fileID: 7417182248551973977}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: -0.25, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 88.88889, y: 88.888885, z: 88.888885}
   m_ConstrainProportionsScale: 0
   m_Children:

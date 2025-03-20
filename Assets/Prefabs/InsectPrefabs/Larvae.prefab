@@ -316,17 +316,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -424,6 +422,8 @@ MonoBehaviour:
   boundaryRedirectionTime: 0
   inCombatStance: 0
   lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &8297065811398907907
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -609,7 +609,7 @@ Transform:
   m_GameObject: {fileID: 4360095849539034141}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 4.4444447, y: 4.4444447, z: 4.4444447}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1040,7 +1040,7 @@ Transform:
   m_GameObject: {fileID: 8871895196801643341}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0, y: -0.1838826, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 444.44446, y: 444.44446, z: 444.44446}
   m_ConstrainProportionsScale: 0
   m_Children:

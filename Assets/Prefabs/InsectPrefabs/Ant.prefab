@@ -1139,17 +1139,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 20
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 4
   attackCooldown: 0.5
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 20
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -1232,6 +1230,23 @@ MonoBehaviour:
   nestAvoidanceDistance: 3
   nestLayerName: PlayerNest1
   nestObjectName: Player Nest 1
+  isMoving: 0
+  isWandering: 0
+  lastAttackTime: -999
+  currentTarget: {fileID: 0}
+  wanderingBehavior: {fileID: 0}
+  hasBeenAttacked: 0
+  lastAttackedTime: -999
+  playerNestTransform: {fileID: 0}
+  nestRadius: 0
+  isStandingAfterKill: 0
+  isPlayerInHitbox: 0
+  isHittingBoundary: 0
+  boundaryRedirectionTime: 0
+  inCombatStance: 0
+  lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &6148205248968665149
 MonoBehaviour:
   m_ObjectHideFlags: 0

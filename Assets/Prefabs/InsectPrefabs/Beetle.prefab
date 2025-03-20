@@ -58,7 +58,7 @@ Transform:
   m_GameObject: {fileID: 47495110423983000}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.12, y: 0, z: 2.68}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 6.6666665, y: 6.6666665, z: 6.6666665}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -229,7 +229,7 @@ Transform:
   m_GameObject: {fileID: 139184445519829093}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: -0.12, y: 0, z: 2.68}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 666.6666, y: 666.6667, z: 666.6667}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -921,7 +921,7 @@ CapsuleCollider:
   m_Radius: 1.83
   m_Height: 7.09
   m_Direction: 2
-  m_Center: {x: 0, y: 1.5167779, z: 3.1}
+  m_Center: {x: 0, y: 1.91, z: 0}
 --- !u!114 &7262164136220482980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -950,17 +950,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 90
   currentHealth: 0
+  recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
   attackDamage: 30
   attackCooldown: 0
   attackRange: 1.5
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 0
   moveSpeed: 1.4
-  rotationSpeed: 7
+  rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
   attackBoolName: Attack
@@ -1043,6 +1041,23 @@ MonoBehaviour:
   nestAvoidanceDistance: 3
   nestLayerName: PlayerNest1
   nestObjectName: Player Nest 1
+  isMoving: 0
+  isWandering: 0
+  lastAttackTime: -999
+  currentTarget: {fileID: 0}
+  wanderingBehavior: {fileID: 0}
+  hasBeenAttacked: 0
+  lastAttackedTime: -999
+  playerNestTransform: {fileID: 0}
+  nestRadius: 0
+  isStandingAfterKill: 0
+  isPlayerInHitbox: 0
+  isHittingBoundary: 0
+  boundaryRedirectionTime: 0
+  inCombatStance: 0
+  lastTargetPosition: {x: 0, y: 0, z: 0}
+  borderObjectName: MapBorder
+  showDebugInfo: 0
 --- !u!114 &7466351218978573797
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1834,7 +1849,7 @@ Transform:
   m_GameObject: {fileID: 6402212534985030802}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.04, y: 0, z: 2.95}
+  m_LocalPosition: {x: -0.04, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1859,8 +1874,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 6.99
-  m_Height: 11.55
+  m_Radius: 5.41
+  m_Height: 5.6
   m_Direction: 2
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &1945622942753241588
