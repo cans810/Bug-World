@@ -1,0 +1,400 @@
+using System.Collections;
+using UnityEngine;
+
+public class CameraAnimations : MonoBehaviour
+{
+    [Header("Animation Settings")]
+    [SerializeField] private float animationDuration = 2.5f;
+    [SerializeField] private float areaViewDuration = 3f;
+    [SerializeField] private float returnDuration = 2f;
+    [SerializeField] private float heightOffset = 15f;
+    [SerializeField] private float lookDownAngle = 50f;
+    
+    [Header("Camera References")]
+    [SerializeField] private CameraController playerCamera;
+    [SerializeField] private Transform cameraTransform;
+    
+    private Vector3 originalPosition;
+    private Quaternion originalRotation;
+    private bool isAnimating = false;
+    private bool isLoadingData = false;
+    
+    // Add this event at the class level
+    public delegate void CameraAnimationCompletedDelegate(GameObject areaTarget, int level, string areaName);
+    public event CameraAnimationCompletedDelegate OnCameraAnimationCompleted;
+    
+    private void Start()
+    {
+        // Find references if not assigned
+        if (playerCamera == null)
+            playerCamera = FindObjectOfType<CameraController>();
+            
+        if (cameraTransform == null && Camera.main != null)
+            cameraTransform = Camera.main.transform;
+            
+        // Find and subscribe to the LevelAreaArrowManager
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            Debug.Log("CameraAnimations: Successfully found LevelAreaArrowManager. Subscribing to OnAreaUnlocked event.");
+            arrowManager.OnAreaUnlocked += OnAreaUnlocked;
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: Failed to find LevelAreaArrowManager! Camera animations for new areas won't work.");
+        }
+        
+        // IMPORTANT: Subscribe our method to our own event to show attributes panel after animation
+        OnCameraAnimationCompleted += ShowAttributesPanelAfterAnimation;
+        
+        Debug.Log("CameraAnimations initialized and event handlers connected");
+    }
+    
+    private void OnEnable()
+    {
+        // Find and subscribe to the LevelAreaArrowManager (do this in OnEnable instead of Start)
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            Debug.Log("CameraAnimations: Subscribing to OnAreaUnlocked event in OnEnable");
+            arrowManager.OnAreaUnlocked += OnAreaUnlocked;
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: Failed to find LevelAreaArrowManager in OnEnable!");
+        }
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe from events
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            arrowManager.OnAreaUnlocked -= OnAreaUnlocked;
+        }
+        
+        // IMPORTANT: Unsubscribe from our own event when destroyed
+        OnCameraAnimationCompleted -= ShowAttributesPanelAfterAnimation;
+    }
+    
+    // Event handler for when an area is unlocked
+    public void OnAreaUnlocked(GameObject areaTarget, int level, string areaName)
+    {
+        // Skip animations if we're loading data
+        if (isLoadingData)
+        {
+            Debug.Log($"CameraAnimations: Skipping animation while loading data for area {areaName} (level {level})");
+            return;
+        }
+        
+        Debug.Log($"CameraAnimations: OnAreaUnlocked triggered for {areaName} (level {level})");
+        
+        if (areaTarget != null)
+        {
+            // NEW CODE: Find and disable border for this area first
+            RemoveBorderForArea(areaTarget, level);
+            
+            Debug.Log($"CameraAnimations: Starting animation for target {areaTarget.name}");
+            StartCoroutine(AnimateCameraToArea(areaTarget.transform, level, areaName));
+        }
+        else
+        {
+            Debug.LogError($"CameraAnimations: Cannot animate to null area target for {areaName}");
+        }
+    }
+    
+    // Public method to manually trigger camera animation to an area
+    public void AnimateToArea(Transform areaTarget)
+    {
+        if (!isAnimating && areaTarget != null)
+        {
+            StartCoroutine(AnimateCameraToArea(areaTarget));
+        }
+    }
+    
+    private IEnumerator AnimateCameraToArea(Transform areaTarget, int level = 0, string areaName = "")
+    {
+        if (isAnimating || cameraTransform == null || playerCamera == null)
+        {
+            Debug.LogWarning($"CameraAnimations: Cannot animate - isAnimating: {isAnimating}, cameraTransform: {(cameraTransform == null ? "null" : "valid")}, playerCamera: {(playerCamera == null ? "null" : "valid")}");
+            yield break;
+        }
+            
+        Debug.Log($"CameraAnimations: Starting camera animation to {(string.IsNullOrEmpty(areaName) ? areaTarget.name : areaName)}");
+        
+        isAnimating = true;
+        
+        // Disable the regular camera controller
+        bool wasEnabled = playerCamera.enabled;
+        playerCamera.enabled = false;
+        
+        // Store original camera position and rotation
+        originalPosition = cameraTransform.position;
+        originalRotation = cameraTransform.rotation;
+        
+        // Calculate position above the area
+        Vector3 areaPosition = areaTarget.position;
+        Vector3 targetPosition = new Vector3(areaPosition.x, areaPosition.y + heightOffset, areaPosition.z);
+        
+        // Calculate rotation to look down at the area
+        Quaternion targetRotation = Quaternion.Euler(lookDownAngle, cameraTransform.rotation.eulerAngles.y, 0);
+        
+        // Animate to the area
+        float timeElapsed = 0;
+        while (timeElapsed < animationDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / animationDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Move and rotate the camera
+            cameraTransform.position = Vector3.Lerp(originalPosition, targetPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(originalRotation, targetRotation, smoothT);
+            
+            yield return null;
+        }
+        
+        // Hold at the area view position
+        yield return new WaitForSeconds(areaViewDuration);
+        
+        // Slowly pan around (optional)
+        float panStartTime = Time.time;
+        float panDuration = areaViewDuration * 0.8f;
+        
+        while (Time.time - panStartTime < panDuration)
+        {
+            // Rotate slowly around the area
+            cameraTransform.RotateAround(
+                areaPosition,
+                Vector3.up,
+                20f * Time.deltaTime
+            );
+            
+            yield return null;
+        }
+        
+        // Return to the original position
+        timeElapsed = 0;
+        Vector3 currentPos = cameraTransform.position;
+        Quaternion currentRot = cameraTransform.rotation;
+        
+        while (timeElapsed < returnDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / returnDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Move and rotate the camera back
+            cameraTransform.position = Vector3.Lerp(currentPos, originalPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(currentRot, originalRotation, smoothT);
+            
+            yield return null;
+        }
+        
+        // Re-enable the camera controller
+        playerCamera.enabled = wasEnabled;
+        isAnimating = false;
+        
+        // Fire the completion event - this will now handle showing the attributes panel
+        if (OnCameraAnimationCompleted != null && areaTarget != null)
+        {
+            Debug.Log($"CameraAnimations: Animation completed, firing OnCameraAnimationCompleted event");
+            OnCameraAnimationCompleted(areaTarget.gameObject, level, areaName);
+        }
+    }
+    
+    // Public method to show a specific area by level
+    public void ShowAreaByLevel(int level)
+    {
+        Debug.Log($"CameraAnimations: ShowAreaByLevel called for level {level}");
+        
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            // Access the levelAreas field using reflection
+            var areasField = typeof(LevelAreaArrowManager).GetField("levelAreas", 
+                System.Reflection.BindingFlags.NonPublic | 
+                System.Reflection.BindingFlags.Instance);
+                
+            if (areasField != null)
+            {
+                var areas = areasField.GetValue(arrowManager) as LevelAreaArrowManager.LevelAreaTarget[];
+                if (areas != null)
+                {
+                    bool areaFound = false;
+                    foreach (var area in areas)
+                    {
+                        if (area.requiredLevel == level && area.areaTarget != null)
+                        {
+                            Debug.Log($"CameraAnimations: Found matching area at level {level}: {area.areaName}");
+                            areaFound = true;
+                            StartCoroutine(AnimateCameraToArea(area.areaTarget.transform, level, area.areaName));
+                            break;
+                        }
+                    }
+                    
+                    if (!areaFound)
+                    {
+                        Debug.LogWarning($"CameraAnimations: No area found at level {level}");
+                    }
+                }
+                else
+                {
+                    Debug.LogError("CameraAnimations: Failed to access areas array through reflection");
+                }
+            }
+            else
+            {
+                Debug.LogError("CameraAnimations: Failed to access levelAreas field through reflection");
+            }
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: LevelAreaArrowManager not found!");
+        }
+    }
+
+    public void SetLoadingState(bool loading)
+    {
+        isLoadingData = loading;
+    }
+
+    // Add this method to check if a new area is unlocked at the given level
+    public bool IsNewAreaUnlockedAtLevel(int level)
+    {
+        Debug.Log($"CameraAnimations: Checking if new area is unlocked at level {level}");
+        
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            // Access the levelAreas field using reflection
+            var areasField = typeof(LevelAreaArrowManager).GetField("levelAreas", 
+                System.Reflection.BindingFlags.NonPublic | 
+                System.Reflection.BindingFlags.Instance);
+                
+            if (areasField != null)
+            {
+                var areas = areasField.GetValue(arrowManager) as LevelAreaArrowManager.LevelAreaTarget[];
+                if (areas != null)
+                {
+                    foreach (var area in areas)
+                    {
+                        if (area.requiredLevel == level && area.areaTarget != null && !area.hasBeenVisited)
+                        {
+                            Debug.Log($"CameraAnimations: Found unvisited area at level {level}: {area.areaName}");
+                            return true;
+                        }
+                    }
+                    Debug.Log($"CameraAnimations: No unvisited areas found at level {level}");
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: LevelAreaArrowManager not found!");
+        }
+        
+        return false;
+    }
+
+    // Add this helper method to properly sequence the showing of the attributes panel
+    public bool IsAnimationInProgress()
+    {
+        return isAnimating;
+    }
+
+    private void ShowAttributesPanelAfterAnimation(GameObject areaTarget, int level, string areaName)
+    {
+        // Only proceed if animation is complete
+        if (isAnimating)
+        {
+            Debug.Log("Not showing attributes panel yet - animation still in progress");
+            return;
+        }
+
+        // Show the attributes panel after the camera animation is complete
+        AttributeDisplay attributeDisplay = FindObjectOfType<AttributeDisplay>();
+        if (attributeDisplay != null)
+        {
+            Debug.Log("Camera animation completed, showing attributes panel");
+            attributeDisplay.ShowPanel(true);
+        }
+        else
+        {
+            // Fallback to directly showing the panel via UIHelper
+            UIHelper uiHelper = FindObjectOfType<UIHelper>();
+            if (uiHelper != null && uiHelper.attributesPanel != null)
+            {
+                Debug.Log("Camera animation completed, showing attributes panel via UIHelper");
+                uiHelper.attributesPanel.SetActive(true);
+                Animator panelAnimator = uiHelper.attributesPanel.GetComponent<Animator>();
+                if (panelAnimator != null)
+                {
+                    panelAnimator.SetBool("ShowUp", true);
+                    panelAnimator.SetBool("Hide", false);
+                }
+            }
+        }
+    }
+
+    // Add this method to find and remove the border for a newly unlocked area
+    private void RemoveBorderForArea(GameObject areaTarget, int level)
+    {
+        // Find all border visualizers in the scene
+        BorderVisualizer[] allBorders = FindObjectsOfType<BorderVisualizer>();
+        
+        // Pattern to match area names with border names
+        // If areaTarget is "Area2" we want to match "MapBorder2", etc.
+        string areaName = areaTarget.name;
+        string areaNumber = System.Text.RegularExpressions.Regex.Match(areaName, @"\d+").Value;
+        
+        Debug.Log($"Looking for borders matching area {areaName} (number: {areaNumber})");
+        
+        bool foundMatchingBorder = false;
+        
+        foreach (BorderVisualizer border in allBorders)
+        {
+            string borderName = border.gameObject.name;
+            bool isMatch = false;
+            
+            // Pattern 1: Direct number match (Area2 → MapBorder2)
+            if (!string.IsNullOrEmpty(areaNumber))
+            {
+                string borderNumber = System.Text.RegularExpressions.Regex.Match(borderName, @"\d+").Value;
+                if (borderNumber == areaNumber)
+                {
+                    isMatch = true;
+                    Debug.Log($"Found matching border by number: {borderName}");
+                }
+            }
+            
+            // Pattern 2: Check if border's required level matches this level
+            if (border.GetRequiredLevel() == level)
+            {
+                isMatch = true;
+                Debug.Log($"Found matching border by level: {borderName} (level {level})");
+            }
+            
+            // If we found a match, fade out and disable this border
+            if (isMatch)
+            {
+                foundMatchingBorder = true;
+                Debug.Log($"Fading out border: {borderName}");
+                border.FadeOutAndDisable();
+                
+                // Also set it as permanently disabled for save/load
+                border.SetVisualizationState(false);
+            }
+        }
+        
+        if (!foundMatchingBorder)
+        {
+            Debug.Log($"No matching border found for area {areaName} at level {level}");
+        }
+    }
+} 
