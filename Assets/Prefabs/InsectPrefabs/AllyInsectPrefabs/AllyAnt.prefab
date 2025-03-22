@@ -216,6 +216,7 @@ MonoBehaviour:
   attackCooldown: 0.5
   attackRange: 1.5
   moveSpeed: 2
+  baseMoveSpeed: 2
   rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
@@ -242,7 +243,7 @@ MonoBehaviour:
   healthBarPrefab: {fileID: 0}
   showHealthBar: 1
   healthBarAnchor: {fileID: 0}
-  chitinAmount: 1
+  chitinAmount: 0
   hitSoundEffectName: Attack1
   useSoundEffectManager: 1
   hitSound: {fileID: 0}
@@ -259,8 +260,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chitinPrefab: {fileID: 1751970566356553609, guid: 675b0c1c1c6362c4a99a1e3865be4a6d, type: 3}
-  minChitinToDrop: 1
-  maxChitinToDrop: 3
+  minChitinToDrop: 0
+  maxChitinToDrop: 0
   dropHeight: 0
   upwardForceMin: 80
   upwardForceMax: 120
@@ -268,6 +269,9 @@ MonoBehaviour:
   horizontalForceMax: 3
   torqueForce: 0.3
   collectionDelay: 0.8
+  showDropAreaGizmo: 1
+  gizmoColor: {r: 0.5, g: 0.8, b: 1, a: 0.5}
+  gizmoRadius: 0.3
   showDebugLogs: 0
 --- !u!114 &209879446764827029
 MonoBehaviour:

@@ -1360,6 +1360,7 @@ MonoBehaviour:
   attackCooldown: 0.5
   attackRange: 1.5
   moveSpeed: 1.1
+  baseMoveSpeed: 2
   rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
@@ -1482,6 +1483,9 @@ MonoBehaviour:
   horizontalForceMax: 3
   torqueForce: 0.3
   collectionDelay: 0.8
+  showDropAreaGizmo: 1
+  gizmoColor: {r: 0.5, g: 0.8, b: 1, a: 0.5}
+  gizmoRadius: 0.1
   showDebugLogs: 0
 --- !u!114 &2273451149201177705
 MonoBehaviour:
