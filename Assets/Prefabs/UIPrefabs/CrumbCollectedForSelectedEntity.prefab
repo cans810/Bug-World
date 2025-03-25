@@ -67,8 +67,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: 5
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: bb95e96b126ecab4eb110c157ab8a78a, type: 2}
-  m_sharedMaterial: {fileID: -7901298509090242670, guid: bb95e96b126ecab4eb110c157ab8a78a, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 2e1e3a014c2f75641b4e643c2ef532af, type: 2}
+  m_sharedMaterial: {fileID: 4086283729606165415, guid: 2e1e3a014c2f75641b4e643c2ef532af, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -92,8 +92,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 44
-  m_fontSizeBase: 44
+  m_fontSize: 50
+  m_fontSizeBase: 50
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -266,8 +266,7 @@ MonoBehaviour:
   fillImage: {fileID: 4591725288473483665}
   crumbCountText: {fileID: 3713873289181794373}
   crumbCountFormat: '{0}/{1}'
-  pulsateScale: 1.2
-  pulsateDuration: 0.3
+  entityIconImage: {fileID: 0}
 --- !u!1 &5352901852711827034
 GameObject:
   m_ObjectHideFlags: 0

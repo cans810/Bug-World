@@ -314,7 +314,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57570006934e3f6478bb3d1da012e666, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 20
+  maxHealth: 10
   currentHealth: 0
   recoveryTime: 5
   invulnerable: 0
@@ -324,6 +324,7 @@ MonoBehaviour:
   attackCooldown: 0.5
   attackRange: 1.5
   moveSpeed: 1.4
+  baseMoveSpeed: 2
   rotationSpeed: 3
   animator: {fileID: 0}
   attackTriggerName: Attack
@@ -339,6 +340,9 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   OnAttack:
+    m_PersistentCalls:
+      m_Calls: []
+  OnRevive:
     m_PersistentCalls:
       m_Calls: []
   enableDamageFlash: 1
@@ -366,14 +370,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069b535dda6470742ba20c43b0d1bfb9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  minWanderDistance: 3
-  maxWanderDistance: 10
+  minWanderDistance: 1
+  maxWanderDistance: 1
   waypointReachedDistance: 0.5
   minWaitTime: 1
   maxWaitTime: 5
   pathfindingUpdateInterval: 0.5
-  avoidObstacles: 1
-  obstacleDetectionRange: 2
+  avoidObstacles: 0
+  obstacleDetectionRange: 0
   obstacleLayer:
     serializedVersion: 2
     m_Bits: 0
@@ -446,6 +450,9 @@ MonoBehaviour:
   horizontalForceMax: 3
   torqueForce: 0.3
   collectionDelay: 0.8
+  showDropAreaGizmo: 1
+  gizmoColor: {r: 0.5, g: 0.8, b: 1, a: 0.5}
+  gizmoRadius: 0.1
   showDebugLogs: 0
 --- !u!114 &6051001023070780960
 MonoBehaviour:

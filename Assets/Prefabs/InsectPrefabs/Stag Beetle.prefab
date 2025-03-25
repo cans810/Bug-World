@@ -1334,13 +1334,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57570006934e3f6478bb3d1da012e666, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 20
+  maxHealth: 125
   currentHealth: 0
   recoveryTime: 5
   invulnerable: 0
   destroyOnDeath: 0
   destroyDelay: 3
-  attackDamage: 4
+  attackDamage: 68
   attackCooldown: 0.5
   attackRange: 1.5
   moveSpeed: 1.4
@@ -1362,6 +1362,9 @@ MonoBehaviour:
   OnAttack:
     m_PersistentCalls:
       m_Calls: []
+  OnRevive:
+    m_PersistentCalls:
+      m_Calls: []
   enableDamageFlash: 1
   damageFlashColor: {r: 0.4490565, g: 0, b: 0, a: 1}
   damageFlashDuration: 0.15
@@ -1371,7 +1374,7 @@ MonoBehaviour:
   healthBarPrefab: {fileID: 0}
   showHealthBar: 1
   healthBarAnchor: {fileID: 0}
-  chitinAmount: 95
+  chitinAmount: 24
   hitSoundEffectName: Attack1
   useSoundEffectManager: 1
   hitSound: {fileID: 0}
@@ -1387,21 +1390,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069b535dda6470742ba20c43b0d1bfb9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  minWanderDistance: 3
-  maxWanderDistance: 10
+  minWanderDistance: 1
+  maxWanderDistance: 2
   waypointReachedDistance: 0.5
   minWaitTime: 1
   maxWaitTime: 5
   pathfindingUpdateInterval: 0.5
-  avoidObstacles: 1
-  obstacleDetectionRange: 2
+  avoidObstacles: 0
+  obstacleDetectionRange: 0
   obstacleLayer:
     serializedVersion: 2
     m_Bits: 0
   animationController: {fileID: 0}
   livingEntity: {fileID: 0}
   restrictToSpawnArea: 1
-  maxWanderRadius: 1
+  maxWanderRadius: 2
   showSpawnAreaGizmo: 1
 --- !u!114 &7997434341678246129
 MonoBehaviour:
