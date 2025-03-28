@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: CanSelcuk
-  productName: 'Insect Evolution: Battle Swarm'
+  productName: Bug World
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -160,8 +160,8 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.CanSelcuk.InsectEvolutionBattleSwarm
-    Standalone: com.CanSelcuk.Insect-Evolution-Battle-Swarm
+    Android: com.CanSelcuk.BugWorld
+    Standalone: com.CanSelcuk.Bug-World
   buildNumber:
     Bratwurst: 0
     Standalone: 0
@@ -982,7 +982,7 @@ PlayerSettings:
   cloudProjectId: 88ba9c95-9bc9-441b-be7f-31aed8de4dc3
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: 'Insect Evolution: Battle Swarm'
+  projectName: Bug World
   organizationId: ikalnakami
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0

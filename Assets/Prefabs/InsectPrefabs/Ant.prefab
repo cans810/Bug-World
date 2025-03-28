@@ -1273,7 +1273,7 @@ MonoBehaviour:
   horizontalForceMax: 3
   torqueForce: 0.3
   collectionDelay: 0.8
-  showDropAreaGizmo: 1
+  showDropAreaGizmo: 0
   gizmoColor: {r: 0.5, g: 0.8, b: 1, a: 0.5}
   gizmoRadius: 0.05
   showDebugLogs: 0

@@ -1,0 +1,5 @@
+C:/Users/Can/Desktop/Bug World/.utmp/Debug/281l6y2e/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/Can/Desktop/Bug World/.utmp/Debug/281l6y2e/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+C:/Users/Can/Desktop/Bug World/.utmp/Debug/281l6y2e/armeabi-v7a/FramePacing/CMakeFiles/swappywrapper.dir
+C:/Users/Can/Desktop/Bug World/.utmp/Debug/281l6y2e/armeabi-v7a/FramePacing/CMakeFiles/edit_cache.dir
+C:/Users/Can/Desktop/Bug World/.utmp/Debug/281l6y2e/armeabi-v7a/FramePacing/CMakeFiles/rebuild_cache.dir

@@ -181,7 +181,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dcfee062f35c4e49b4d8f1171188244, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  collectRadius: 1.5
+  collectRadius: 2
   lifetimeSeconds: 60
   pickupSound: {fileID: 0}
   fullInventorySound: {fileID: 0}
