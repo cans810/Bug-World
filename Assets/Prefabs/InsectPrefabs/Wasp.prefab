@@ -720,14 +720,9 @@ MonoBehaviour:
   minWanderDistance: 1
   maxWanderDistance: 2
   waypointReachedDistance: 0.5
+  rotationSpeed: 3
   minWaitTime: 1
   maxWaitTime: 5
-  pathfindingUpdateInterval: 0.5
-  avoidObstacles: 0
-  obstacleDetectionRange: 0
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 0
   animationController: {fileID: 0}
   livingEntity: {fileID: 0}
   restrictToSpawnArea: 1

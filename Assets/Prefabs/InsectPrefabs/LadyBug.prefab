@@ -2064,20 +2064,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   minWanderDistance: 1
-  maxWanderDistance: 2
+  maxWanderDistance: 3
   waypointReachedDistance: 0.5
   minWaitTime: 1
   maxWaitTime: 5
-  pathfindingUpdateInterval: 0.5
-  avoidObstacles: 0
-  obstacleDetectionRange: 0
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 0
+  rotationDuration: 1.5
   animationController: {fileID: 0}
   livingEntity: {fileID: 0}
   restrictToSpawnArea: 1
-  maxWanderRadius: 1
+  maxWanderRadius: 1.3
   showSpawnAreaGizmo: 1
 --- !u!54 &5813209381805055653
 Rigidbody:

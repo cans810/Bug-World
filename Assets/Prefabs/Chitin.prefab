@@ -10,15 +10,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 9c61bf4204bdad8489a981cb4ee14ba8, type: 3}
       propertyPath: m_LocalScale.x
-      value: 75
+      value: 65
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 9c61bf4204bdad8489a981cb4ee14ba8, type: 3}
       propertyPath: m_LocalScale.y
-      value: 75
+      value: 65
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 9c61bf4204bdad8489a981cb4ee14ba8, type: 3}
       propertyPath: m_LocalScale.z
-      value: 132.5355
+      value: 114.864105
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 9c61bf4204bdad8489a981cb4ee14ba8, type: 3}
       propertyPath: m_LocalPosition.x
@@ -162,7 +162,7 @@ MonoBehaviour:
   outlineWidth: 1
   outlineMode: 0
   entity: {fileID: 1751970566356553609}
-  monitorOutline: 1
+  monitorOutline: 0
   checkInterval: 0.2
   recoveryDelay: 0.05
   excludeCarriedLoot: 1

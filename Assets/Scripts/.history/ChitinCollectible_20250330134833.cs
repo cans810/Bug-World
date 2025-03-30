@@ -1,0 +1,399 @@
+using UnityEngine;
+using System.Collections;
+using CandyCoded.HapticFeedback;
+
+public class ChitinCollectible : MonoBehaviour
+{
+    [SerializeField] private float collectRadius = 1.5f; // Distance at which player can collect
+    [SerializeField] private float lifetimeSeconds = 60f; // How long before the crumb disappears
+    [SerializeField] private AudioClip pickupSound; // Sound when collected
+    [SerializeField] private AudioClip fullInventorySound; // Sound when inventory is full
+    [SerializeField] private bool useProximityCollection = true; // Whether to use proximity-based collection
+    
+    [Header("Collection Animation")]
+    [SerializeField] private float floatHeight = 0.7f; // How high the item floats
+    [SerializeField] private float floatSpeed = 2.0f; // Speed of floating animation
+    [SerializeField] private float dropSpeed = 6.0f; // Speed of dropping onto player
+    [SerializeField] private float collectionDelay = 0.3f; // Delay before actually adding to inventory
+    
+    private Transform playerTransform;
+    private PlayerInventory playerInventory;
+    private float spawnTime;
+    private bool isCollectable = true;
+    private bool isBeingCollected = false;
+    private bool isAnimationRunning = false;
+    
+    private static readonly string ANIMATION_LOCK_KEY = "CHITIN_ANIMATION_LOCK";
+    
+    private void Start()
+    {
+        // Find the player
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            playerTransform = player.transform;
+            playerInventory = player.GetComponent<PlayerInventory>();
+            
+            // Check if we should collect immediately
+            if (useProximityCollection && Vector3.Distance(transform.position, playerTransform.position) <= collectRadius)
+            {
+                TryCollect();
+            }
+        }
+        
+        spawnTime = Time.time;
+        
+        // Destroy after lifetime
+        Destroy(gameObject, lifetimeSeconds);
+        
+        // Make sure we're on the correct layer
+        if (gameObject.layer != LayerMask.NameToLayer("Loot") && 
+            gameObject.layer != LayerMask.NameToLayer("NonpickableLoot"))
+        {
+            gameObject.layer = LayerMask.NameToLayer("Loot");
+        }
+        
+        // Ensure physics behavior
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+        }
+        
+        // Make sure collider is not a trigger
+        Collider collider = GetComponent<Collider>();
+        if (collider != null)
+        {
+            collider.isTrigger = false;
+        }
+        
+        Debug.Log($"ChitinCollectible initialized on {gameObject.name} with physics");
+    }
+    
+    private void Update()
+    {
+        // If being collected, don't check for proximity collection
+        if (isBeingCollected)
+            return;
+            
+        // Only process proximity collection if enabled
+        if (!useProximityCollection || !isCollectable)
+            return;
+            
+        if (playerTransform == null || playerInventory == null)
+            return;
+            
+        // Get distance to player
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        
+        // If close enough to collect
+        if (distanceToPlayer <= collectRadius)
+        {
+            TryCollect();
+        }
+    }
+    
+    // Make collection logic accessible for both proximity and trigger methods
+    public bool TryCollect()
+    {
+        // Don't collect if already being collected or not collectable
+        if (!isCollectable || isBeingCollected || playerInventory == null)
+        {
+            Debug.Log($"Cannot collect {gameObject.name}: isCollectable={isCollectable}, isBeingCollected={isBeingCollected}, playerInventory={playerInventory != null}");
+            return false;
+        }
+        
+        // Check if this object has a lock on it (being animated by another script)
+        if (gameObject.GetInstanceID().ToString().Contains(ANIMATION_LOCK_KEY))
+        {
+            Debug.Log($"Cannot collect {gameObject.name}: animation lock is active");
+            return false;
+        }
+        
+        // NEW: Check if the player can collect items (respects collection cooldown)
+        PlayerController playerController = playerTransform?.GetComponent<PlayerController>();
+        if (playerController != null && !playerController.CanCollectItems())
+        {
+            Debug.Log($"Cannot collect {gameObject.name}: collection cooldown active");
+            return false;
+        }
+        
+        // CRITICAL: Check inventory capacity directly using the actual field
+        if (playerInventory.ChitinCount >= playerInventory.MaxChitinCapacity)
+        {
+            // Inventory is already full, don't even start the animation
+            Debug.Log($"Cannot collect {gameObject.name}: chitin inventory full ({playerInventory.ChitinCount}/{playerInventory.MaxChitinCapacity})");
+            
+            // Player inventory is full - play different sound and/or show message
+            if (fullInventorySound != null && Time.time % 1.0f < 0.1f)
+            {
+                AudioSource.PlayClipAtPoint(fullInventorySound, transform.position);
+            }
+            
+            return false;
+        }
+        
+        // Mark as being collected immediately to prevent multiple collection attempts
+        isBeingCollected = true;
+        
+        // Add a lock to the name to prevent other scripts from destroying it
+        gameObject.name = gameObject.name + "_" + ANIMATION_LOCK_KEY;
+        
+        // Play pickup sound if available
+        if (pickupSound != null)
+        {
+            AudioSource.PlayClipAtPoint(pickupSound, transform.position);
+        }
+        
+        // Add haptic feedback for collection
+        HapticFeedback.HeavyFeedback();
+        
+        Debug.Log($"Starting collection animation for {gameObject.name}");
+        
+        // Start collection animation
+        StartCoroutine(CollectionAnimation());
+        return true;
+    }
+    
+    private IEnumerator CollectionAnimation()
+    {
+        isAnimationRunning = true;
+        
+        Debug.Log($"Collection animation started for {gameObject.name}");
+        isBeingCollected = true;
+        isCollectable = false;
+        
+        // Disable any colliders to prevent further interactions
+        Collider collider = GetComponent<Collider>();
+        if (collider != null)
+        {
+            collider.enabled = false;
+            Debug.Log("Disabled collider for collection animation");
+        }
+            
+        // Disable any rigidbody physics
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+            Debug.Log("Set rigidbody to kinematic for collection animation");
+        }
+        
+        // Store initial position and scale
+        Vector3 startPosition = transform.position;
+        Vector3 highPoint = startPosition + Vector3.up * floatHeight;
+        Vector3 originalScale = transform.localScale;
+        
+        Debug.Log($"Animation parameters: Start pos {startPosition}, high point {highPoint}");
+        
+        // Float up animation
+        float elapsedTime = 0;
+        while (elapsedTime < 1.0f)
+        {
+            transform.position = Vector3.Lerp(startPosition, highPoint, elapsedTime);
+            elapsedTime += Time.deltaTime * floatSpeed;
+            yield return null;
+        }
+        
+        // Ensure we reach the high point
+        transform.position = highPoint;
+        Debug.Log("Reached high point in collection animation");
+        
+        // Small pause at the top
+        yield return new WaitForSeconds(0.1f);
+        
+        // CRITICAL: Before continuing animation, check if inventory is now full
+        if (playerInventory != null && playerInventory.ChitinCount >= playerInventory.MaxChitinCapacity)
+        {
+            Debug.Log($"Aborting collection animation - inventory became full during animation");
+            
+            // Return the object to its original state
+            transform.position = startPosition;
+            transform.localScale = originalScale;
+            
+            if (collider != null)
+                collider.enabled = true;
+            
+            if (rb != null)
+            {
+                rb.isKinematic = false;
+                rb.velocity = Vector3.zero;
+            }
+            
+            // Remove the animation lock
+            gameObject.name = gameObject.name.Replace("_" + ANIMATION_LOCK_KEY, "");
+            
+            // Reset collection flags
+            isBeingCollected = false;
+            isCollectable = true;
+            isAnimationRunning = false;
+            
+            yield break;
+        }
+        
+        // Drop onto player animation with shrinking effect
+        elapsedTime = 0;
+        while (elapsedTime < 1.0f && playerTransform != null)
+        {
+            // Get current player position (exactly at player position, not offset)
+            Vector3 targetPosition = playerTransform.position;
+            
+            // Calculate progress - ensure it's clamped
+            float progress = Mathf.Clamp01(elapsedTime);
+            
+            // Move toward player
+            transform.position = Vector3.Lerp(highPoint, targetPosition, progress);
+            
+            // Shrink as it moves down
+            transform.localScale = Vector3.Lerp(originalScale, originalScale * 0.2f, progress);
+            
+            elapsedTime += Time.deltaTime * dropSpeed;
+            yield return null;
+            
+            // CRITICAL: Check if inventory has become full while animating
+            if (playerInventory != null && playerInventory.ChitinCount >= playerInventory.MaxChitinCapacity)
+            {
+                Debug.Log($"Inventory became full during drop animation - aborting");
+                
+                // Return the object to normal state
+                transform.position = startPosition;
+                transform.localScale = originalScale;
+                
+                if (collider != null)
+                    collider.enabled = true;
+                    
+                if (rb != null)
+                {
+                    rb.isKinematic = false;
+                    rb.velocity = Vector3.zero;
+                }
+                
+                // Remove animation lock
+                gameObject.name = gameObject.name.Replace("_" + ANIMATION_LOCK_KEY, "");
+                
+                // Reset collection flags
+                isBeingCollected = false;
+                isCollectable = true;
+                isAnimationRunning = false;
+                
+                yield break;
+            }
+        }
+        
+        // Ensure it reaches exactly the player position
+        if (playerTransform != null)
+        {
+            transform.position = playerTransform.position;
+            transform.localScale = originalScale * 0.2f;
+        }
+        
+        Debug.Log("Completed drop animation, adding to inventory");
+        
+        // FINAL CHECK: Add to player inventory only if there's still room
+        if (playerInventory != null && playerInventory.ChitinCount < playerInventory.MaxChitinCapacity)
+        {
+            playerInventory.AddChitin(1);
+            Debug.Log($"Chitin collected from {gameObject.name}, added to chitin inventory");
+            
+            isAnimationRunning = false;
+            Debug.Log($"Destroying {gameObject.name} after collection");
+            Destroy(gameObject);
+        }
+        else
+        {
+            Debug.Log($"Inventory is full after animation - cannot add chitin. Returning to original position.");
+            
+            // Return object to original state instead of destroying
+            transform.position = startPosition;
+            transform.localScale = originalScale;
+            
+            if (collider != null)
+                collider.enabled = true;
+                
+            if (rb != null)
+            {
+                rb.isKinematic = false;
+                rb.velocity = Vector3.zero;
+            }
+            
+            // Remove animation lock
+            gameObject.name = gameObject.name.Replace("_" + ANIMATION_LOCK_KEY, "");
+            
+            // Reset collection flags
+            isBeingCollected = false;
+            isCollectable = true;
+            isAnimationRunning = false;
+        }
+    }
+
+    // Public getter for collect radius
+    public float GetCollectRadius() => collectRadius;
+
+    // Force collection method for compatibility
+    public void ForceCollect()
+    {
+        Debug.Log($"ForceCollect called on {gameObject.name}");
+        TryCollect();
+    }
+
+    private void Awake()
+    {
+        // Make sure we're on the right layer
+        if (gameObject.layer != LayerMask.NameToLayer("Loot"))
+        {
+            Debug.Log($"Setting {gameObject.name} to Loot layer");
+            gameObject.layer = LayerMask.NameToLayer("Loot");
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        // Skip if already being collected or not collectable
+        if (!isCollectable || isBeingCollected || isAnimationRunning)
+        {
+            Debug.Log($"Skipping collision collection for {gameObject.name}: already being processed");
+            return;
+        }
+        
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            Debug.Log($"Player collided with {gameObject.name}, attempting collection");
+            TryCollect();
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // Skip if we have a non-trigger collider (we'll use OnCollisionEnter instead)
+        Collider ownCollider = GetComponent<Collider>();
+        if (ownCollider != null && !ownCollider.isTrigger)
+        {
+            return;
+        }
+        
+        // Skip if already being collected or not collectable
+        if (!isCollectable || isBeingCollected || isAnimationRunning)
+        {
+            Debug.Log($"Skipping trigger collection for {gameObject.name}: already being processed");
+            return;
+        }
+        
+        if (other.CompareTag("Player"))
+        {
+            Debug.Log($"Player entered trigger for {gameObject.name}, attempting collection");
+            TryCollect();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (isAnimationRunning)
+        {
+            // Get the stack trace to see what's destroying the object
+            System.Diagnostics.StackTrace stackTrace = new System.Diagnostics.StackTrace();
+            Debug.LogWarning($"Object {gameObject.name} was destroyed while animation was running!\nStack trace: {stackTrace}");
+        }
+    }
+} 

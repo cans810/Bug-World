@@ -1,0 +1,1152 @@
+using System.Collections;
+using UnityEngine;
+using System.Collections.Generic;
+
+public class CameraAnimations : MonoBehaviour
+{
+    [Header("Animation Settings")]
+    [SerializeField] private float animationDuration = 2.5f;
+    [SerializeField] private float areaViewDuration = 3f;
+    [SerializeField] private float returnDuration = 2f;
+    [SerializeField] private float heightOffset = 15f;
+    [SerializeField] private float lookDownAngle = 50f;
+    
+    [Header("Camera References")]
+    [SerializeField] private CameraController playerCamera;
+    [SerializeField] private Transform cameraTransform;
+    
+    [Header("Map View Settings")]
+    [SerializeField] private float mapViewHeight = 10f; // Reduced from 60f to keep camera closer
+    [SerializeField] private float mapViewDuration = 1.5f; // Time to transition to map view
+    [SerializeField] private float mapCameraAngle = 15f; // Reduced from 75f for better perspective
+    
+    [Header("Map View Drag Settings")]
+    [SerializeField] private float dragSpeed = 4.0f; // Increased for more responsive dragging
+    [SerializeField] private float leftBoundary = 25f; // How far left from player
+    [SerializeField] private float rightBoundary = 25f; // How far right from player
+    [SerializeField] private float forwardBoundary = 50f; // How far forward from player
+    [SerializeField] private float backwardBoundary = 50f; // How far backward from player
+    [SerializeField] private bool enableMapDragging = true; // Toggle to enable/disable dragging
+    
+    private Vector3 originalPosition;
+    private Quaternion originalRotation;
+    private bool isAnimating = false;
+    private bool isLoadingData = false;
+    
+    // Add this event at the class level
+    public delegate void CameraAnimationCompletedDelegate(GameObject areaTarget, int level, string areaName);
+    public event CameraAnimationCompletedDelegate OnCameraAnimationCompleted;
+    
+    // Add these fields at the class level
+    private Queue<AnimationRequest> animationQueue = new Queue<AnimationRequest>();
+    private bool isProcessingQueue = false;
+
+    private Vector3 preMappingCameraPosition; // Store camera position before mapping
+    private Quaternion preMappingCameraRotation; // Store camera rotation before mapping
+    private bool isInMapView = false; // Track if we're currently in map view
+
+    private Vector3 dragStartPosition; // Mouse/touch position when drag starts
+    private Vector3 originalMapPosition; // Original camera position in map view
+    private bool isDragging = false;
+
+    // Add reference to the joystick
+    private OnScreenJoystick playerJoystick;
+
+    // Define a struct to hold animation request data
+    private struct AnimationRequest
+    {
+        public Transform target;
+        public int level;
+        public string areaName;
+        public bool isEgg;
+
+        public AnimationRequest(Transform target, int level = 0, string areaName = "")
+        {
+            this.target = target;
+            this.level = level;
+            this.areaName = areaName;
+            this.isEgg = false; // Default is false
+        }
+    }
+    
+    private void Start()
+    {
+        // Find references if not assigned
+        if (playerCamera == null)
+            playerCamera = FindObjectOfType<CameraController>();
+            
+        if (cameraTransform == null && Camera.main != null)
+            cameraTransform = Camera.main.transform;
+            
+        // Find and subscribe to the LevelAreaArrowManager
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            Debug.Log("CameraAnimations: Successfully found LevelAreaArrowManager. Subscribing to OnAreaUnlocked event.");
+            arrowManager.OnAreaUnlocked += OnAreaUnlocked;
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: Failed to find LevelAreaArrowManager! Camera animations for new areas won't work.");
+        }
+        
+        Debug.Log("CameraAnimations initialized and event handlers connected");
+    }
+    
+    private void OnEnable()
+    {
+        // Find and subscribe to the LevelAreaArrowManager (do this in OnEnable instead of Start)
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            Debug.Log("CameraAnimations: Subscribing to OnAreaUnlocked event in OnEnable");
+            arrowManager.OnAreaUnlocked += OnAreaUnlocked;
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: Failed to find LevelAreaArrowManager in OnEnable!");
+        }
+    }
+    
+    private void OnDestroy()
+    {
+        // Unsubscribe from events
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            arrowManager.OnAreaUnlocked -= OnAreaUnlocked;
+        }
+    }
+    
+    // Event handler for when an area is unlocked
+    public void OnAreaUnlocked(GameObject areaTarget, int level, string areaName)
+    {
+        // Skip animations if we're loading data
+        if (isLoadingData)
+        {
+            Debug.Log($"CameraAnimations: Skipping animation while loading data for area {areaName} (level {level})");
+            return;
+        }
+        
+        // We no longer trigger animations automatically here
+        // Instead, we'll just log that an area was unlocked, but animation is delayed
+        Debug.Log($"CameraAnimations: Area unlocked: {areaName} (level {level}) - waiting for player to claim reward");
+        
+        // The animation will be triggered from LevelUpPanelHelper when player clicks "Claim" button
+    }
+    
+    // Public method to manually trigger camera animation to an area
+    public void AnimateToArea(Transform areaTarget, int level = 0, string areaName = "")
+    {
+        if (areaTarget == null)
+        {
+            Debug.LogWarning("Cannot animate to null target");
+            return;
+        }
+
+        // Create a new animation request
+        AnimationRequest request = new AnimationRequest(areaTarget, level, areaName);
+        
+        // Add to queue
+        animationQueue.Enqueue(request);
+        Debug.Log($"Added animation request to queue for {(string.IsNullOrEmpty(areaName) ? areaTarget.name : areaName)}");
+        
+        // Start processing the queue if not already processing
+        if (!isProcessingQueue)
+        {
+            StartCoroutine(ProcessAnimationQueue());
+        }
+    }
+    
+    // Add this method to process the animation queue
+    private IEnumerator ProcessAnimationQueue()
+    {
+        // Prevent re-entry if already processing
+        if (isProcessingQueue)
+        {
+            Debug.LogWarning("CameraAnimations: Attempted to process queue while already processing!");
+            yield break;
+        }
+        
+        isProcessingQueue = true;
+        int safetyCounter = 0; // To prevent infinite loops
+        
+        while (animationQueue.Count > 0 && safetyCounter < 10) // Safety limit
+        {
+            // Get next request
+            AnimationRequest request = animationQueue.Dequeue();
+            
+            // Skip if target is null
+            if (request.target == null)
+            {
+                Debug.LogWarning("CameraAnimations: Skipping null target in animation queue");
+                continue;
+            }
+            
+            // Process animation
+            Debug.Log($"Processing animation request for {(string.IsNullOrEmpty(request.areaName) ? request.target.name : request.areaName)}");
+            yield return StartCoroutine(AnimateCameraToArea(request.target, request.level, request.areaName, request.isEgg));
+            
+            // Add a small delay between animations
+            yield return new WaitForSeconds(0.5f);
+            
+            safetyCounter++;
+        }
+        
+        // Safety check - log warning if we hit the limit
+        if (safetyCounter >= 10)
+        {
+            Debug.LogWarning("CameraAnimations: Hit safety limit in animation queue processing!");
+        }
+        
+        isProcessingQueue = false;
+    }
+    
+    private IEnumerator AnimateCameraToArea(Transform areaTarget, int level = 0, string areaName = "", bool isEgg = false)
+    {
+        // Safety check to prevent camera freeze if target is null
+        if (areaTarget == null)
+        {
+            Debug.LogWarning("CameraAnimations: Attempted to animate to null target");
+            yield break;
+        }
+        
+        if (cameraTransform == null || playerCamera == null)
+        {
+            Debug.LogWarning($"CameraAnimations: Cannot animate - cameraTransform: {(cameraTransform == null ? "null" : "valid")}, playerCamera: {(playerCamera == null ? "null" : "valid")}");
+            yield break;
+        }
+            
+        Debug.Log($"CameraAnimations: Starting camera animation to {(string.IsNullOrEmpty(areaName) ? areaTarget.name : areaName)}");
+        
+        // If already animating, return
+        if (isAnimating)
+        {
+            Debug.LogWarning("CameraAnimations: Attempted to start animation while already animating");
+            yield break;
+        }
+        
+        isAnimating = true;
+        
+        // Disable the regular camera controller
+        bool wasEnabled = playerCamera.enabled;
+        playerCamera.enabled = false;
+        
+        // Store original camera position and rotation
+        originalPosition = cameraTransform.position;
+        originalRotation = cameraTransform.rotation;
+        
+        // Use different settings for eggs vs areas
+        float useHeightOffset = isEgg ? 2f : heightOffset;  // Even lower for eggs (2 instead of 3)
+        float useLookDownAngle = isEgg ? 90f : lookDownAngle; // 90 degrees (straight down) for eggs
+        float useAnimationDuration = isEgg ? 1.0f : animationDuration; // Faster for eggs
+        float useAreaViewDuration = isEgg ? 3.0f : areaViewDuration; // Slightly longer viewing time
+        
+        // Calculate position above the target
+        Vector3 areaPosition = areaTarget.position;
+        Vector3 targetPosition = new Vector3(areaPosition.x, areaPosition.y + useHeightOffset, areaPosition.z);
+        
+        // Calculate rotation to look down at the target
+        Quaternion targetRotation = Quaternion.Euler(useLookDownAngle, cameraTransform.rotation.eulerAngles.y, 0);
+        
+        // Animate to the target
+        float timeElapsed = 0;
+        while (timeElapsed < useAnimationDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / useAnimationDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Move and rotate the camera
+            cameraTransform.position = Vector3.Lerp(originalPosition, targetPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(originalRotation, targetRotation, smoothT);
+            
+            yield return null;
+        }
+
+        // After the camera reaches the egg position
+        if (isEgg)
+        {
+            // Play a different sound for eggs
+            SoundEffectManager.Instance.PlaySound("ShowEgg");
+        }
+        else
+        {
+            // This is already in your code for areas
+            SoundEffectManager.Instance.PlaySound("AreaUnlocked");
+        }
+        
+        yield return new WaitForSeconds(useAreaViewDuration);
+        
+        // Return to the original position
+        timeElapsed = 0;
+        Vector3 currentPos = cameraTransform.position;
+        Quaternion currentRot = cameraTransform.rotation;
+        
+        // Use a faster return for eggs
+        float useReturnDuration = isEgg ? returnDuration * 0.7f : returnDuration;
+        
+        while (timeElapsed < useReturnDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / useReturnDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Move and rotate the camera back
+            cameraTransform.position = Vector3.Lerp(currentPos, originalPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(currentRot, originalRotation, smoothT);
+            
+            yield return null;
+        }
+        
+        // Re-enable the camera controller
+        playerCamera.enabled = wasEnabled;
+        isAnimating = false;
+        
+        // IMPORTANT: Directly notify AttributeDisplay that animation has ended
+        AttributeDisplay attributeDisplay = FindObjectOfType<AttributeDisplay>();
+        if (attributeDisplay != null)
+        {
+            attributeDisplay.NotifyCameraAnimationEnded();
+        }
+        
+        // Also notify other subscribers
+        if (OnCameraAnimationCompleted != null)
+        {
+            Debug.Log($"CameraAnimations: Animation completed, invoking OnCameraAnimationCompleted for {areaName}");
+            OnCameraAnimationCompleted(areaTarget.gameObject, level, areaName);
+        }
+        
+        yield break;
+    }
+    
+    // Public method to show a specific area by level
+    public void ShowAreaByLevel(int level)
+    {
+        Debug.Log($"CameraAnimations: ShowAreaByLevel called for level {level}");
+        
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            // Access the levelAreas field using reflection
+            var areasField = typeof(LevelAreaArrowManager).GetField("levelAreas", 
+                System.Reflection.BindingFlags.NonPublic | 
+                System.Reflection.BindingFlags.Instance);
+                
+            if (areasField != null)
+            {
+                var areas = areasField.GetValue(arrowManager) as LevelAreaArrowManager.LevelAreaTarget[];
+                if (areas != null)
+                {
+                    bool areaFound = false;
+                    foreach (var area in areas)
+                    {
+                        if (area.requiredLevel == level && area.areaTarget != null)
+                        {
+                            Debug.Log($"CameraAnimations: Found matching area at level {level}: {area.areaName}");
+                            areaFound = true;
+                            StartCoroutine(AnimateCameraToArea(area.areaTarget.transform, level, area.areaName));
+                            break;
+                        }
+                    }
+                    
+                    if (!areaFound)
+                    {
+                        Debug.LogWarning($"CameraAnimations: No area found at level {level}");
+                    }
+                }
+                else
+                {
+                    Debug.LogError("CameraAnimations: Failed to access areas array through reflection");
+                }
+            }
+            else
+            {
+                Debug.LogError("CameraAnimations: Failed to access levelAreas field through reflection");
+            }
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: LevelAreaArrowManager not found!");
+        }
+    }
+
+    public void SetLoadingState(bool loading)
+    {
+        isLoadingData = loading;
+    }
+
+    // Add this method to check if a new area is unlocked at the given level
+    public bool IsNewAreaUnlockedAtLevel(int level)
+    {
+        Debug.Log($"CameraAnimations: Checking if new area is unlocked at level {level}");
+        
+        LevelAreaArrowManager arrowManager = FindObjectOfType<LevelAreaArrowManager>();
+        if (arrowManager != null)
+        {
+            // Access the levelAreas field using reflection
+            var areasField = typeof(LevelAreaArrowManager).GetField("levelAreas", 
+                System.Reflection.BindingFlags.NonPublic | 
+                System.Reflection.BindingFlags.Instance);
+                
+            if (areasField != null)
+            {
+                var areas = areasField.GetValue(arrowManager) as LevelAreaArrowManager.LevelAreaTarget[];
+                if (areas != null)
+                {
+                    foreach (var area in areas)
+                    {
+                        if (area.requiredLevel == level && area.areaTarget != null && !area.hasBeenVisited)
+                        {
+                            Debug.Log($"CameraAnimations: Found unvisited area at level {level}: {area.areaName}");
+                            return true;
+                        }
+                    }
+                    Debug.Log($"CameraAnimations: No unvisited areas found at level {level}");
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError("CameraAnimations: LevelAreaArrowManager not found!");
+        }
+        
+        return false;
+    }
+
+    // Add this helper method to properly sequence the showing of the attributes panel
+    public bool IsAnimationInProgress()
+    {
+        return isAnimating;
+    }
+
+
+    // Add this method to find and remove the border for a newly unlocked area
+    private void RemoveBorderForArea(GameObject areaTarget, int level)
+    {
+        // Find all border visualizers in the scene
+        BorderVisualizer[] allBorders = FindObjectsOfType<BorderVisualizer>();
+        
+        // Pattern to match area names with border names
+        // If areaTarget is "Area2" we want to match "MapBorder2", etc.
+        string areaName = areaTarget.name;
+        string areaNumber = System.Text.RegularExpressions.Regex.Match(areaName, @"\d+").Value;
+        
+        Debug.Log($"Looking for borders matching area {areaName} (number: {areaNumber})");
+        
+        bool foundMatchingBorder = false;
+        
+        foreach (BorderVisualizer border in allBorders)
+        {
+            string borderName = border.gameObject.name;
+            bool isMatch = false;
+            
+            // Pattern 1: Direct number match (Area2 → MapBorder2)
+            if (!string.IsNullOrEmpty(areaNumber))
+            {
+                string borderNumber = System.Text.RegularExpressions.Regex.Match(borderName, @"\d+").Value;
+                if (borderNumber == areaNumber)
+                {
+                    isMatch = true;
+                    Debug.Log($"Found matching border by number: {borderName}");
+                }
+            }
+            
+            // Pattern 2: Check if border's required level matches this level
+            if (border.GetRequiredLevel() == level)
+            {
+                isMatch = true;
+                Debug.Log($"Found matching border by level: {borderName} (level {level})");
+            }
+            
+            // If we found a match, fade out and disable this border
+            if (isMatch)
+            {
+                foundMatchingBorder = true;
+            }
+        }
+        
+        if (!foundMatchingBorder)
+        {
+            Debug.Log($"No matching border found for area {areaName} at level {level}");
+        }
+    }
+
+    // Add this method to handle egg-specific camera animation
+    public void AnimateToEgg(Transform eggTransform)
+    {
+        if (eggTransform == null)
+        {
+            Debug.LogWarning("Cannot animate to null egg target");
+            return;
+        }
+
+        // Create animation request with isEgg flag set to true
+        AnimationRequest request = new AnimationRequest(eggTransform);
+        request.isEgg = true; // Mark this as an egg animation
+        
+        // Add to queue
+        animationQueue.Enqueue(request);
+        Debug.Log($"Added egg animation request to queue for {eggTransform.name}");
+        
+        // Start processing the queue if not already processing
+        if (!isProcessingQueue)
+        {
+            StartCoroutine(ProcessAnimationQueue());
+        }
+    }
+
+    // Add this helper method to check if an area is already in the queue
+    private bool IsAreaAlreadyInQueue(GameObject areaTarget)
+    {
+        foreach (var request in animationQueue)
+        {
+            if (request.target != null && request.target.gameObject == areaTarget)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Modify the method to accept a callback for when camera is in position
+    public void AnimateMetamorphosis(Transform playerTransform, System.Action onCameraInPosition = null)
+    {
+        if (playerTransform == null)
+        {
+            Debug.LogWarning("Cannot animate metamorphosis with null player transform");
+            return;
+        }
+
+        // Start the metamorphosis animation coroutine with callback
+        StartCoroutine(MetamorphosisCameraAnimation(playerTransform, onCameraInPosition));
+    }
+
+    // Update the coroutine to disable player controls during animation
+    private IEnumerator MetamorphosisCameraAnimation(Transform playerTransform, System.Action onCameraInPosition)
+    {
+        // If already animating, return
+        if (isAnimating)
+        {
+            Debug.LogWarning("CameraAnimations: Attempted to start metamorphosis animation while already animating");
+            yield break;
+        }
+
+        isAnimating = true;
+        
+        // Disable player controls
+        PlayerController playerController = playerTransform.GetComponent<PlayerController>();
+        if (playerController != null)
+        {
+            playerController.SetControlsEnabled(false);
+            Debug.Log("Disabled player controls for metamorphosis animation");
+        }
+
+        // Disable the regular camera controller
+        bool wasEnabled = playerCamera.enabled;
+        playerCamera.enabled = false;
+
+        // Store original camera position and rotation
+        originalPosition = cameraTransform.position;
+        originalRotation = cameraTransform.rotation;
+
+        // CORRECTED: Position camera to see the FRONT of the player
+        Vector3 playerForward = playerTransform.forward;
+        Vector3 playerUp = Vector3.up;
+        
+        // Calculate positioning values based on player scale
+        float forwardOffset = playerTransform.localScale.z * 5.0f; // Distance for front view
+        float heightOffset = playerTransform.localScale.y * 4.0f;  // Height for looking down
+        
+        // Position camera in front of the player (using positive forward direction)
+        // This will position the camera where the ant is facing/looking
+        Vector3 horizontalOffset = playerForward * forwardOffset; 
+        Vector3 targetPosition = playerTransform.position + horizontalOffset;
+        targetPosition.y = playerTransform.position.y + heightOffset;
+        
+        // Calculate rotation to look back at the player from the front
+        Quaternion targetRotation = Quaternion.LookRotation(
+            playerTransform.position - targetPosition, // Direction to look at player
+            Vector3.up // Keep camera upright
+        );
+
+        // Move to the view position over time
+        float timeElapsed = 0f;
+        float frontViewDuration = 1.5f; // Shorter than regular animations
+
+        // Camera shake parameters
+        float shakeIntensity = 0.05f; // Subtle shake
+        float shakeFrequency = 10f; // Higher frequency for smoother shake
+        Vector3 shakeOffset = Vector3.zero;
+
+        while (timeElapsed < frontViewDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / frontViewDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Calculate base position and rotation
+            Vector3 basePosition = Vector3.Lerp(originalPosition, targetPosition, smoothT);
+            Quaternion baseRotation = Quaternion.Slerp(originalRotation, targetRotation, smoothT);
+            
+            // Add slight camera shake that increases during the transition
+            float currentShakeIntensity = shakeIntensity * smoothT; // Gradually increase shake
+            
+            // Generate smooth random shake offset
+            shakeOffset = Vector3.Lerp(
+                shakeOffset, 
+                new Vector3(
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, 0) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(0, Time.time * shakeFrequency) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, Time.time * shakeFrequency) - 0.5f) * 2f
+                ) * currentShakeIntensity,
+                Time.deltaTime * 8f // Smooth factor
+            );
+            
+            // Apply position with shake and rotation
+            cameraTransform.position = basePosition + shakeOffset;
+            cameraTransform.rotation = baseRotation;
+            
+            yield return null;
+        }
+
+        // We've reached the viewing position - trigger the size-up now!
+        if (onCameraInPosition != null)
+        {
+            onCameraInPosition.Invoke();
+            Debug.Log("Camera in position - triggering size-up effect");
+        }
+
+        // Hold the view for a moment with continued subtle shake
+        float holdDuration = 1.5f; // Show the player for this long
+        float holdTimer = 0f;
+        
+        while (holdTimer < holdDuration)
+        {
+            holdTimer += Time.deltaTime;
+            float holdProgress = holdTimer / holdDuration;
+            
+            // Calculate shake that gradually reduces as we approach the end of hold time
+            float currentShakeIntensity = shakeIntensity * (1f - holdProgress * 0.7f);
+            
+            // Generate smooth random shake offset
+            shakeOffset = Vector3.Lerp(
+                shakeOffset, 
+                new Vector3(
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, 0) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(0, Time.time * shakeFrequency) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, Time.time * shakeFrequency) - 0.5f) * 2f
+                ) * currentShakeIntensity,
+                Time.deltaTime * 8f
+            );
+            
+            // Apply position with shake
+            cameraTransform.position = targetPosition + shakeOffset;
+            
+            yield return null;
+        }
+
+        // Return to original position
+        timeElapsed = 0f;
+        float returnDuration = 1.5f;
+        Vector3 currentPos = cameraTransform.position;
+        Quaternion currentRot = cameraTransform.rotation;
+
+        while (timeElapsed < returnDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / returnDuration);
+            
+            // Use a smooth easing function
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            // Calculate base position and rotation
+            Vector3 basePosition = Vector3.Lerp(currentPos, originalPosition, smoothT);
+            Quaternion baseRotation = Quaternion.Slerp(currentRot, originalRotation, smoothT);
+            
+            // Add shake that gradually fades out as we return to original position
+            float currentShakeIntensity = shakeIntensity * (1f - smoothT);
+            
+            // Generate smooth random shake offset
+            shakeOffset = Vector3.Lerp(
+                shakeOffset, 
+                new Vector3(
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, 0) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(0, Time.time * shakeFrequency) - 0.5f) * 2f,
+                    (Mathf.PerlinNoise(Time.time * shakeFrequency, Time.time * shakeFrequency) - 0.5f) * 2f
+                ) * currentShakeIntensity,
+                Time.deltaTime * 8f
+            );
+            
+            // Apply position with shake and rotation
+            cameraTransform.position = basePosition + shakeOffset;
+            cameraTransform.rotation = baseRotation;
+            
+            yield return null;
+        }
+
+        // Re-enable the camera controller
+        playerCamera.enabled = wasEnabled;
+        
+        // Re-enable player controls
+        if (playerController != null)
+        {
+            playerController.SetControlsEnabled(true);
+            Debug.Log("Re-enabled player controls after metamorphosis animation");
+        }
+        
+        isAnimating = false;
+    }
+
+    // Modified AnimateToMapView to disable joystick
+    public void AnimateToMapView()
+    {
+        if (isAnimating) return;
+        
+        // Find and disable joystick
+        if (playerJoystick == null)
+            playerJoystick = FindObjectOfType<OnScreenJoystick>();
+        
+        if (playerJoystick != null)
+        {
+            playerJoystick.gameObject.SetActive(false);
+            Debug.Log("Disabled joystick for map view");
+        }
+        
+        Debug.Log("Starting map view camera animation");
+        StartCoroutine(AnimateToMapViewCoroutine());
+    }
+
+    // Modified ReturnFromMapView to re-enable joystick
+    public void ReturnFromMapView()
+    {
+        if (!isInMapView || isAnimating) return;
+        
+        Debug.Log("Returning from map view");
+        StartCoroutine(ReturnFromMapViewCoroutine());
+        
+        // Re-enable joystick
+        if (playerJoystick != null)
+        {
+            playerJoystick.gameObject.SetActive(true);
+            playerJoystick.ResetJoystick(); // Reset joystick state
+            Debug.Log("Re-enabled joystick after map view");
+        }
+    }
+
+    // Implement the map view animation coroutine
+    private IEnumerator AnimateToMapViewCoroutine()
+    {
+        isAnimating = true;
+        
+        // Store original camera position for return
+        preMappingCameraPosition = cameraTransform.position;
+        preMappingCameraRotation = cameraTransform.rotation;
+        
+        // Disable the regular camera controller
+        bool wasEnabled = playerCamera.enabled;
+        playerCamera.enabled = false;
+        
+        // Determine player position (center of map view)
+        PlayerController player = FindObjectOfType<PlayerController>();
+        Vector3 playerPosition = player != null ? player.transform.position : Vector3.zero;
+        
+        // Store this for the boundary calculations
+        originalMapPosition = new Vector3(playerPosition.x, playerPosition.y + mapViewHeight, playerPosition.z);
+        
+        // Calculate target position above player
+        Vector3 targetPosition = originalMapPosition;
+        
+        // Calculate target rotation (looking down)
+        Quaternion targetRotation = Quaternion.Euler(mapCameraAngle, 0f, 0f);
+        
+        // Move to the map view position over time
+        float timeElapsed = 0f;
+        
+        while (timeElapsed < mapViewDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / mapViewDuration);
+            
+            // Use smooth easing
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            cameraTransform.position = Vector3.Lerp(preMappingCameraPosition, targetPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(preMappingCameraRotation, targetRotation, smoothT);
+            
+            yield return null;
+        }
+        
+        // Make sure we end at exactly the target
+        cameraTransform.position = targetPosition;
+        cameraTransform.rotation = targetRotation;
+        
+        isInMapView = true;
+        isAnimating = false;
+    }
+
+    // Implement the return from map view animation coroutine
+    private IEnumerator ReturnFromMapViewCoroutine()
+    {
+        isAnimating = true;
+        
+        // Current camera position (which might be dragged away from original)
+        Vector3 currentPosition = cameraTransform.position;
+        Quaternion currentRotation = cameraTransform.rotation;
+        
+        // Move back to the original position over time
+        float timeElapsed = 0f;
+        
+        while (timeElapsed < mapViewDuration)
+        {
+            timeElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(timeElapsed / mapViewDuration);
+            
+            // Use smooth easing
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+            
+            cameraTransform.position = Vector3.Lerp(currentPosition, preMappingCameraPosition, smoothT);
+            cameraTransform.rotation = Quaternion.Slerp(currentRotation, preMappingCameraRotation, smoothT);
+            
+            yield return null;
+        }
+        
+        // Make sure we end at exactly the original position
+        cameraTransform.position = preMappingCameraPosition;
+        cameraTransform.rotation = preMappingCameraRotation;
+        
+        // Re-enable the camera controller
+        playerCamera.enabled = true;
+        
+        isInMapView = false;
+        isAnimating = false;
+    }
+
+    // Modified HandleMapViewDragging for separate horizontal/vertical limits
+    private void HandleMapViewDragging()
+    {
+        // Only handle when in map view
+        if (!isInMapView || !enableMapDragging) return;
+        
+        // Get world position of the player (center of map)
+        PlayerController player = FindObjectOfType<PlayerController>();
+        if (player == null) return;
+        
+        Vector3 playerPosition = player.transform.position;
+        
+        // Check for touch/mouse input
+        if (Input.GetMouseButtonDown(0))
+        {
+            // Start dragging
+            dragStartPosition = Input.mousePosition;
+            isDragging = true;
+            
+            // Debug
+            Debug.Log("Map dragging started");
+        }
+        else if (Input.GetMouseButton(0) && isDragging)
+        {
+            // Calculate drag amount
+            Vector3 currentMousePos = Input.mousePosition;
+            Vector3 delta = currentMousePos - dragStartPosition;
+            
+            // Convert delta to world space movement (scale based on height)
+            float dragMultiplier = cameraTransform.position.y * 0.1f;
+            
+            // Calculate world space directions (using global coordinates)
+            Vector3 worldForward = Vector3.forward; // Global Z+
+            Vector3 worldRight = Vector3.right;     // Global X+
+            
+            // Calculate movement based on screen drag
+            Vector3 movement = (-worldRight * delta.x - worldForward * delta.y) * dragSpeed * Time.deltaTime * dragMultiplier;
+            
+            // Calculate new desired position
+            Vector3 newPosition = cameraTransform.position + movement;
+            
+            // Keep height fixed at map height
+            newPosition.y = cameraTransform.position.y;
+            
+            // Apply rectangular boundary constraints
+            // Calculate offset from player position (in XZ plane)
+            float offsetX = newPosition.x - playerPosition.x;
+            float offsetZ = newPosition.z - playerPosition.z;
+            
+            // Clamp X offset (left/right)
+            if (offsetX < -leftBoundary) newPosition.x = playerPosition.x - leftBoundary;
+            if (offsetX > rightBoundary) newPosition.x = playerPosition.x + rightBoundary;
+            
+            // Clamp Z offset (forward/backward)
+            if (offsetZ < -backwardBoundary) newPosition.z = playerPosition.z - backwardBoundary;
+            if (offsetZ > forwardBoundary) newPosition.z = playerPosition.z + forwardBoundary;
+            
+            // Apply the new position
+            cameraTransform.position = newPosition;
+            
+            // Reset start position for smooth continuous dragging
+            dragStartPosition = currentMousePos;
+            
+            // Debug
+            Debug.Log($"Camera position: {newPosition}, Offset from player: X={offsetX:F1}, Z={offsetZ:F1}");
+        }
+        else if (Input.GetMouseButtonUp(0) && isDragging)
+        {
+            // End dragging
+            isDragging = false;
+            
+            // Debug
+            Debug.Log("Map dragging ended");
+        }
+    }
+
+    // Add this Update method to enable dragging
+    private void Update()
+    {
+        // Only handle dragging when in map view
+        if (isInMapView && enableMapDragging)
+        {
+            HandleMapViewDragging();
+        }
+    }
+
+    // Add this method for newly hatched insect camera showcase
+    public void ShowNewlyHatchedInsect(GameObject newInsect)
+    {
+        if (newInsect == null || isAnimating)
+        {
+            Debug.LogWarning("Cannot show hatched insect: " + 
+                (newInsect == null ? "insect is null" : "camera already animating"));
+            return;
+        }
+        
+        Debug.Log($"Starting camera animation to showcase newly hatched insect: {newInsect.name}");
+        StartCoroutine(AnimateCameraToNewInsect(newInsect.transform));
+    }
+
+    // Coroutine to animate camera to newly hatched insect - updated camera angle
+    private IEnumerator AnimateCameraToNewInsect(Transform insectTransform)
+    {
+        if (insectTransform == null || cameraTransform == null)
+        {
+            Debug.LogWarning("Cannot animate to insect: missing references");
+            yield break;
+        }
+        
+        isAnimating = true;
+        
+        // Store the insect's AllyAI and AIWandering components to re-enable later
+        AllyAI allyAI = insectTransform.GetComponent<AllyAI>();
+        AIWandering wandering = insectTransform.GetComponent<AIWandering>();
+        
+        // Disable components during showcase
+        if (allyAI != null) allyAI.enabled = false;
+        if (wandering != null) wandering.SetWanderingEnabled(false);
+        
+        // Disable player controls during the animation
+        PlayerController playerController = FindObjectOfType<PlayerController>();
+        if (playerController != null)
+        {
+            playerController.SetControlsEnabled(false);
+            Debug.Log("Disabled player controls for insect hatching animation");
+        }
+        
+        // Disable the camera controller temporarily
+        bool wasEnabled = playerCamera ? playerCamera.enabled : false;
+        if (playerCamera)
+            playerCamera.enabled = false;
+        
+        // Store original camera position and rotation
+        originalPosition = cameraTransform.position;
+        originalRotation = cameraTransform.rotation;
+        
+        // Calculate position to view the insect from above, to the right, and looking down
+        Vector3 insectPosition = insectTransform.position;
+        
+        // Use right vector and up vector to position camera
+        Vector3 rightVector = Vector3.right;
+        
+        // Position camera to the right, higher up, and slightly behind
+        Vector3 viewPosition = insectPosition + 
+                               rightVector * 2.0f +          // To the right
+                               Vector3.up * 2.5f +           // Higher up
+                               insectTransform.forward * 1.0f; // Slightly behind
+        
+        // Calculate rotation to look down at the insect from this position
+        Quaternion viewRotation = Quaternion.LookRotation(insectPosition - viewPosition);
+        
+        // Show hatching message
+        UIHelper uiHelper = FindObjectOfType<UIHelper>();
+        if (uiHelper != null)
+        {
+            // Try to get entity type from name
+            string entityType = "Insect";
+            
+            // Extract entity type from game object name if possible
+            string objName = insectTransform.name.ToLower();
+            if (objName.Contains("ant")) entityType = "Ant";
+            else if (objName.Contains("fly")) entityType = "Fly";
+            else if (objName.Contains("ladybug")) entityType = "Ladybug";
+            else if (objName.Contains("mosquito")) entityType = "Mosquito";
+            else if (objName.Contains("grasshopper")) entityType = "Grasshopper";
+            else if (objName.Contains("wasp")) entityType = "Wasp";
+            else if (objName.Contains("spider")) entityType = "Spider";
+            else if (objName.Contains("beetle")) entityType = "Beetle";
+            else if (objName.Contains("insect")) entityType = "Insect";
+            else if (objName.Contains("centipede")) entityType = "Centipede";
+            else if (objName.Contains("mantis")) entityType = "Mantis";
+            else if (objName.Contains("tarantula")) entityType = "Tarantula";
+            else if (objName.Contains("scorpion")) entityType = "Scorpion";
+            
+            // Show hatching message
+            uiHelper.ShowInformText($"{entityType} egg has hatched!", 5f);
+        }
+        
+        // Animate to the viewing position
+        float animationDuration = 1.0f;
+        float elapsedTime = 0f;
+        
+        while (elapsedTime < animationDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.SmoothStep(0, 1, elapsedTime / animationDuration);
+            
+            cameraTransform.position = Vector3.Lerp(originalPosition, viewPosition, t);
+            cameraTransform.rotation = Quaternion.Slerp(originalRotation, viewRotation, t);
+            
+            yield return null;
+        }
+        
+        // Play the Pickup3 sound effect instead of InsectHatched
+        SoundEffectManager.Instance?.PlaySound("Pickup3");
+        
+        // Hold for 3 seconds showing the insect
+        float holdDuration = 3.0f;
+        yield return new WaitForSeconds(holdDuration);
+        
+        // Return to the original position
+        elapsedTime = 0f;
+        float returnDuration = 1.0f;
+        
+        while (elapsedTime < returnDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.SmoothStep(0, 1, elapsedTime / returnDuration);
+            
+            cameraTransform.position = Vector3.Lerp(viewPosition, originalPosition, t);
+            cameraTransform.rotation = Quaternion.Slerp(viewRotation, originalRotation, t);
+            
+            yield return null;
+        }
+        
+        // Re-enable the camera controller
+        if (playerCamera)
+            playerCamera.enabled = wasEnabled;
+        
+        // Re-enable player controls
+        if (playerController != null)
+        {
+            playerController.SetControlsEnabled(true);
+            Debug.Log("Re-enabled player controls after insect hatching animation");
+        }
+        
+        // DIRECTLY re-enable the insect's movement components
+        if (allyAI != null)
+        {
+            allyAI.enabled = true;
+            allyAI.ForceEnableMovement(); // Use our new method for extra reliability
+            Debug.Log($"Directly re-enabled AllyAI for {insectTransform.name}");
+        }
+        
+        if (wandering != null)
+        {
+            wandering.SetWanderingEnabled(true);
+            Debug.Log($"Directly re-enabled wandering for {insectTransform.name}");
+        }
+        
+        isAnimating = false;
+        
+        // Try direct method call on egg controller in addition to SendMessage
+        AllyEggController[] eggControllers = FindObjectsOfType<AllyEggController>();
+        foreach (var controller in eggControllers)
+        {
+            controller.OnCameraAnimationComplete(insectTransform.gameObject);
+        }
+        
+        // Also keep the SendMessage as a fallback
+        SendMessageOptions options = SendMessageOptions.DontRequireReceiver;
+        GameObject.FindObjectOfType<AllyEggController>()?.gameObject.SendMessage(
+            "OnCameraAnimationComplete", insectTransform.gameObject, options);
+    }
+
+    // Add this method to force enable all AllyAI components in the scene
+    public void ForceEnableAllInsectAI()
+    {
+        Debug.Log("FORCE ENABLING ALL INSECT AI COMPONENTS IN SCENE!");
+        
+        // Find all AllyAI components
+        AllyAI[] allAllies = FindObjectsOfType<AllyAI>();
+        int enabledCount = 0;
+        
+        foreach (var ally in allAllies)
+        {
+            // Enable the component
+            ally.enabled = true;
+            
+            // Call ForceEnableMovement if available
+            ally.ForceEnableMovement();
+            
+            // Also try to enable any wandering component
+            AIWandering wandering = ally.GetComponent<AIWandering>();
+            if (wandering != null)
+            {
+                wandering.SetWanderingEnabled(true);
+            }
+            
+            enabledCount++;
+            Debug.Log($"Force enabled AI for: {ally.gameObject.name}");
+        }
+        
+        Debug.Log($"Force enabled {enabledCount} insect AI components");
+        
+        // Set delayed re-check to catch any that might get disabled again
+        StartCoroutine(DelayedAIEnableCheck());
+    }
+
+    // Add a delayed check to catch any components that might get disabled again
+    private IEnumerator DelayedAIEnableCheck()
+    {
+        // Wait a short time to catch any components that might get disabled again
+        yield return new WaitForSeconds(0.5f);
+        
+        // Re-check and enable any disabled components
+        AllyAI[] allAllies = FindObjectsOfType<AllyAI>();
+        foreach (var ally in allAllies)
+        {
+            if (!ally.enabled)
+            {
+                ally.enabled = true;
+                ally.ForceEnableMovement();
+                Debug.Log($"RE-ENABLED AI in delayed check for: {ally.gameObject.name}");
+            }
+        }
+        
+        // Try again with a longer delay
+        yield return new WaitForSeconds(2.0f);
+        
+        allAllies = FindObjectsOfType<AllyAI>();
+        foreach (var ally in allAllies)
+        {
+            if (!ally.enabled)
+            {
+                ally.enabled = true;
+                ally.ForceEnableMovement();
+                Debug.Log($"FINAL RE-ENABLE for AI: {ally.gameObject.name}");
+            }
+        }
+    }
+} 
